@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +45,36 @@ app.use(express.static(distPath));
 
 // Fallback all SPA routes to index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Product Planner - Starting Up</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #18191c; color: #f5f5f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #20222a; border: 1px solid #d4af37; padding: 40px; border-radius: 16px; text-align: center; max-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+            h1 { color: #d4af37; margin: 0 0 12px 0; font-size: 24px; }
+            p { color: #a8a29e; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0; }
+            .spinner { width: 36px; height: 36px; border: 3px solid rgba(212,175,55,0.2); border-top-color: #d4af37; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px auto; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="spinner"></div>
+            <h1>Product Planner</h1>
+            <p>The application is compiling its static bundle. Please refresh this page in a few moments.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
 });
 
 // Start Express Server
