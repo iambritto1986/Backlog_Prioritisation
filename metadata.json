@@ -1,0 +1,6 @@
+{
+  "name": "Product Planner",
+  "description": "Collaborative project planning workspace turning project spreadsheets into structured, facilitated working sessions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
