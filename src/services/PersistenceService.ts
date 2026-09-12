@@ -7,6 +7,7 @@ import {
   CardComment,
   ActivityLog,
   VersionSnapshot,
+  Workstream,
 } from '../types';
 import { IPersistenceService } from './types';
 import {
@@ -133,6 +134,41 @@ export class PersistenceService implements IPersistenceService {
     await this.saveCards([card]);
   }
 
+  async createCard(card: Card): Promise<Card> {
+    const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
+    const all: Card[] = raw ? JSON.parse(raw) : [];
+    const newCard: Card = {
+      ...card,
+      createdAt: card.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    all.push(newCard);
+    localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(all));
+    return newCard;
+  }
+
+  async deleteCard(id: string): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
+    if (raw) {
+      const all: Card[] = JSON.parse(raw);
+      const filtered = all.filter((c) => c.id !== id);
+      localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(filtered));
+    }
+
+    // Clean up associated assessments
+    const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
+    if (rawAssess) {
+      const map: Record<string, SessionAssessment> = JSON.parse(rawAssess);
+      const updatedMap: Record<string, SessionAssessment> = {};
+      Object.entries(map).forEach(([k, v]) => {
+        if (v.cardId !== id) {
+          updatedMap[k] = v;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updatedMap));
+    }
+  }
+
   // SESSIONS
   async getSessions(projectId?: string): Promise<PlanningSession[]> {
     const raw = localStorage.getItem(STORAGE_KEYS.SESSIONS);
@@ -157,6 +193,117 @@ export class PersistenceService implements IPersistenceService {
       all.push(session);
     }
     localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(all));
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.SESSIONS);
+    if (raw) {
+      const all: PlanningSession[] = JSON.parse(raw);
+      const filtered = all.filter((s) => s.id !== sessionId);
+      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(filtered));
+    }
+
+    // Cascade delete assessments for this session
+    const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
+    if (rawAssess) {
+      const map: Record<string, SessionAssessment> = JSON.parse(rawAssess);
+      const updatedMap: Record<string, SessionAssessment> = {};
+      Object.entries(map).forEach(([k, v]) => {
+        if (v.sessionId !== sessionId) {
+          updatedMap[k] = v;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updatedMap));
+    }
+
+    // Cascade delete actions for this session
+    const rawActions = localStorage.getItem(STORAGE_KEYS.ACTIONS);
+    if (rawActions) {
+      const all: FollowUpAction[] = JSON.parse(rawActions);
+      localStorage.setItem(
+        STORAGE_KEYS.ACTIONS,
+        JSON.stringify(all.filter((a) => a.sessionId !== sessionId))
+      );
+    }
+
+    // Cascade delete comments for this session
+    const rawComms = localStorage.getItem(STORAGE_KEYS.COMMENTS);
+    if (rawComms) {
+      const all: CardComment[] = JSON.parse(rawComms);
+      localStorage.setItem(
+        STORAGE_KEYS.COMMENTS,
+        JSON.stringify(all.filter((c) => c.sessionId !== sessionId))
+      );
+    }
+
+    // Cascade delete logs for this session
+    const rawLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
+    if (rawLogs) {
+      const all: ActivityLog[] = JSON.parse(rawLogs);
+      localStorage.setItem(
+        STORAGE_KEYS.LOGS,
+        JSON.stringify(all.filter((l) => l.sessionId !== sessionId))
+      );
+    }
+  }
+
+  async duplicateSession(sessionId: string): Promise<PlanningSession> {
+    const original = await this.getSession(sessionId);
+    if (!original) throw new Error('Original session not found');
+
+    const newId = `sess-${Date.now()}`;
+    const duplicated: PlanningSession = {
+      ...original,
+      id: newId,
+      name: `${original.name} (Copy)`,
+      stage: 'preparation',
+      version: 1,
+      versionSnapshots: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await this.saveSession(duplicated);
+
+    // Duplicate assessments
+    const existingAssessments = await this.getAssessments(sessionId);
+    const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
+    const assessMap: Record<string, SessionAssessment> = rawAssess ? JSON.parse(rawAssess) : {};
+    Object.values(existingAssessments).forEach((a) => {
+      assessMap[`${newId}:${a.cardId}`] = {
+        ...a,
+        sessionId: newId,
+        version: 1,
+        lastEditedAt: new Date().toISOString(),
+      };
+    });
+    localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(assessMap));
+
+    return duplicated;
+  }
+
+  // WORKSTREAMS
+  async deleteWorkstream(projectId: string, workstreamId: string): Promise<void> {
+    const project = await this.getProject(projectId);
+    if (!project) return;
+
+    project.workstreams = project.workstreams.filter((w) => w.id !== workstreamId);
+    project.updatedAt = new Date().toISOString();
+    await this.saveProject(project);
+  }
+
+  async updateWorkstream(projectId: string, workstream: Workstream): Promise<void> {
+    const project = await this.getProject(projectId);
+    if (!project) return;
+
+    const idx = project.workstreams.findIndex((w) => w.id === workstream.id);
+    if (idx >= 0) {
+      project.workstreams[idx] = workstream;
+    } else {
+      project.workstreams.push(workstream);
+    }
+    project.updatedAt = new Date().toISOString();
+    await this.saveProject(project);
   }
 
   async closeSession(sessionId: string, closedBy: string, summary: string): Promise<VersionSnapshot> {

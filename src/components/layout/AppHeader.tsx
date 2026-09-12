@@ -16,6 +16,13 @@ import {
   FolderKanban,
   Kanban,
   CheckSquare,
+  Sparkles,
+  SlidersHorizontal,
+  HelpCircle,
+  Keyboard,
+  Database,
+  ChevronRight,
+  Compass,
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
 import { authService } from '../../services/AuthService';
@@ -72,6 +79,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   connectionStatus = 'saved',
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const availableUsers = authService.getAvailableUsers();
 
@@ -120,6 +128,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   const handleChecklistClick = () => {
+    setShowToolsMenu(false);
     if (onOpenChecklist) onOpenChecklist();
     if (onOpenVerification) onOpenVerification();
   };
@@ -128,21 +137,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     switch (connectionStatus) {
       case 'saving':
         return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             Saving...
           </span>
         );
       case 'conflict':
         return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
             Conflict
           </span>
         );
       case 'offline':
         return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-stone-700 text-stone-300 border border-stone-600">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-stone-800 text-stone-300 border border-stone-700">
             <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
             Offline
           </span>
@@ -150,7 +159,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       case 'saved':
       default:
         return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             Saved
           </span>
@@ -176,136 +185,218 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="bg-[#18191c] text-stone-100 border-b border-[#282a32] sticky top-0 z-50 select-none shadow-md">
+    <header className="bg-[#121316] text-stone-100 border-b border-[#24262f] sticky top-0 z-50 select-none shadow-md">
+      {/* Top Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-        {/* Left: Brand & Navigation */}
-        <div className="flex items-center gap-4 sm:gap-6">
+        {/* Left: AlignCraft Brand & Breadcrumbs */}
+        <div className="flex items-center gap-3 sm:gap-5">
           {/* Mobile hamburger button */}
           <button
             type="button"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="md:hidden p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
             aria-label="Toggle navigation menu"
           >
             {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
+          {/* Logo & Product Name */}
           <div
             onClick={() => handleNav('home')}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="flex items-center gap-2.5 cursor-pointer group shrink-0"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#252830] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] font-black tracking-wider text-sm shadow-sm group-hover:border-[#d4af37] transition-colors">
-              PP
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#2a2c38] to-[#1c1d24] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] font-black tracking-wider text-sm shadow-sm group-hover:border-[#d4af37] group-hover:shadow-[#d4af37]/20 transition-all">
+              <Sparkles className="w-4 h-4 text-[#d4af37]" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm tracking-tight text-white">Product Planner</span>
+            <div className="hidden sm:block">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-sm tracking-tight text-white group-hover:text-[#fcd34d] transition-colors">
+                  AlignCraft
+                </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.2 rounded bg-[#d4af37]/15 text-[#d4af37] border border-[#d4af37]/30">
-                  PRD v1.0
+                  Studio
                 </span>
               </div>
-              {project && (
-                <div className="text-[11px] text-stone-400 truncate max-w-[140px] sm:max-w-[240px]">
-                  {project.name}
-                </div>
-              )}
+              <div className="text-[10px] text-stone-400 leading-none">
+                Product Planner & Backlog Prioritization
+              </div>
             </div>
           </div>
 
-          {/* Nav Tabs (Desktop) */}
-          <nav className="hidden md:flex items-center gap-1 border-l border-stone-800 pl-4 sm:pl-5">
+          {/* Smart Breadcrumb Trail */}
+          <div className="hidden lg:flex items-center gap-1.5 text-xs text-stone-400 border-l border-stone-800 pl-4">
             <button
               onClick={() => handleNav('home')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                currentTab === 'home'
-                  ? 'bg-[#282a33] text-white shadow-sm border border-stone-700'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
+              className="hover:text-stone-200 transition-colors truncate max-w-[120px]"
             >
-              Workspace Home
+              Workspace
             </button>
-            <button
-              onClick={() => handleNav('project')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                currentTab === 'project'
-                  ? 'bg-[#282a33] text-white shadow-sm border border-stone-700'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
-            >
-              Project Overview
-            </button>
-            <button
-              onClick={() => handleNav('session')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                currentTab === 'session'
-                  ? 'bg-[#282a33] text-[#fcd34d] shadow-sm border border-[#d4af37]/40'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
-            >
-              <Radio className="w-3.5 h-3.5 text-[#d4af37]" />
-              Session Room
-              {session && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              )}
-            </button>
-            <button
-              onClick={() => handleNav('board')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                currentTab === 'board'
-                  ? 'bg-[#282a33] text-white shadow-sm border border-stone-700'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
-            >
-              Project Board
-            </button>
-            <button
-              onClick={() => handleNav('results')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                currentTab === 'results'
-                  ? 'bg-[#282a33] text-white shadow-sm border border-stone-700'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
-            >
-              Session Results
-            </button>
-            <button
-              onClick={() => handleNav('import')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                currentTab === 'import'
-                  ? 'bg-[#282a33] text-white shadow-sm border border-stone-700'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/50'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
-              Import Wizard
-            </button>
-          </nav>
+            {project && (
+              <>
+                <ChevronRight className="w-3 h-3 text-stone-600 shrink-0" />
+                <button
+                  onClick={() => handleNav('project')}
+                  className={`hover:text-stone-200 transition-colors truncate max-w-[180px] font-medium ${
+                    currentTab === 'project' ? 'text-white font-semibold' : ''
+                  }`}
+                >
+                  {project.name}
+                </button>
+              </>
+            )}
+            {session && (currentTab === 'session' || currentTab === 'results') && (
+              <>
+                <ChevronRight className="w-3 h-3 text-stone-600 shrink-0" />
+                <span className="text-[#fcd34d] font-semibold truncate max-w-[190px]">
+                  {session.name}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Right: Actions, Persona Switcher & Controls */}
-        <div className="flex items-center gap-3">
-          {/* Real-time status */}
+        {/* Center/Right: Desktop Nav Links */}
+        <nav className="hidden md:flex items-center gap-1">
+          <button
+            onClick={() => handleNav('home')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              currentTab === 'home'
+                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            Workspace
+          </button>
+          <button
+            onClick={() => handleNav('project')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              currentTab === 'project'
+                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            Project Overview
+          </button>
+          <button
+            onClick={() => handleNav('board')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              currentTab === 'board'
+                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            Working Board
+          </button>
+          <button
+            onClick={() => handleNav('session')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+              currentTab === 'session'
+                ? 'bg-[#22242e] text-[#fcd34d] shadow-xs border border-[#d4af37]/40'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5 text-[#d4af37]" />
+            Session Room
+            {session && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+          <button
+            onClick={() => handleNav('results')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              currentTab === 'results'
+                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            Results & Exports
+          </button>
+          <button
+            onClick={() => handleNav('import')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+              currentTab === 'import'
+                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
+                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
+            Import Excel
+          </button>
+        </nav>
+
+        {/* Far Right: Tools, Persona Switcher & Theme */}
+        <div className="flex items-center gap-2.5">
+          {/* Status Badge */}
           <div className="hidden sm:block">{getStatusBadge()}</div>
 
-          {/* PRD Acceptance Test Runner Button */}
-          <button
-            onClick={handleChecklistClick}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#282a33] hover:bg-[#323540] text-[#fcd34d] border border-[#d4af37]/30 hover:border-[#d4af37] transition-colors shadow-sm"
-            title="Open PRD Acceptance Criteria Checklist and Automated Tests"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
-            <span className="hidden lg:inline">PRD Verification</span>
-            <span className="text-[10px] px-1 py-0.2 bg-[#d4af37]/20 rounded font-mono">12/12</span>
-          </button>
+          {/* Settings & Diagnostics Dropdown Trigger */}
+          <div className="relative">
+            <button
+              onClick={() => setShowToolsMenu(!showToolsMenu)}
+              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 transition-colors"
+              title="Settings, Diagnostics & PRD Verification"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
 
-          {/* Persona Switcher (Crucial for testing collaboration & permissions) */}
+            {showToolsMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-[#1c1e26] border border-stone-700 rounded-xl shadow-2xl py-2 z-50 text-xs animate-in zoom-in-95 duration-100">
+                <div className="px-3 py-1.5 border-b border-stone-800 text-stone-400 font-semibold uppercase tracking-wider text-[10px]">
+                  Workspace Utilities & Diagnostics
+                </div>
+
+                <div className="py-1">
+                  <button
+                    onClick={handleChecklistClick}
+                    className="w-full text-left px-3 py-2 text-stone-200 hover:bg-[#282a35] flex items-center gap-2.5 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#d4af37]" />
+                    <div className="flex-1">
+                      <div className="font-semibold text-white flex items-center justify-between">
+                        <span>PRD Acceptance Verification</span>
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[#d4af37]/20 text-[#fcd34d]">
+                          12/12
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-stone-400">
+                        View compliance matrix & checks
+                      </div>
+                    </div>
+                  </button>
+
+                  {onResetData && (
+                    <button
+                      onClick={() => {
+                        setShowToolsMenu(false);
+                        onResetData();
+                      }}
+                      className="w-full text-left px-3 py-2 text-stone-200 hover:bg-[#282a35] flex items-center gap-2.5 transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4 text-rose-400" />
+                      <div>
+                        <div className="font-semibold text-white">Reset Demo Backlog</div>
+                        <div className="text-[11px] text-stone-400">Restore default projects & sessions</div>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                <div className="px-3 py-2 border-t border-stone-800 text-[11px] text-stone-500 flex items-center justify-between">
+                  <span>AlignCraft v1.0</span>
+                  <span className="font-mono text-emerald-400">Client Persistence Active</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Persona Switcher Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#24262f] hover:bg-[#2c2f3a] border border-stone-700 text-xs text-stone-200 transition-colors"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#1c1e26] hover:bg-[#242630] border border-stone-700 text-xs text-stone-200 transition-colors shadow-xs"
             >
               <div
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
                 style={{ backgroundColor: currentUser.avatarColor }}
               >
                 {currentUser.name.charAt(0)}
@@ -322,11 +413,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-72 bg-[#20222a] border border-stone-700 rounded-lg shadow-xl py-2 z-50">
+              <div className="absolute right-0 mt-2 w-72 bg-[#1c1e26] border border-stone-700 rounded-xl shadow-2xl py-2 z-50 animate-in zoom-in-95 duration-100">
                 <div className="px-3 py-2 border-b border-stone-800">
-                  <div className="text-xs font-semibold text-stone-300">Workshop Collaboration Personas</div>
+                  <div className="text-xs font-semibold text-stone-200">Workshop Collaboration Roles</div>
                   <div className="text-[11px] text-stone-400">
-                    Switch role to test permissions, facilitator follow mode, and voting.
+                    Switch persona to test facilitator synchronization, voting, and role permissions.
                   </div>
                 </div>
                 <div className="py-1">
@@ -334,13 +425,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     <button
                       key={u.id}
                       onClick={() => handleUserSelect(u)}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-stone-800 transition-colors ${
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[#282a35] transition-colors ${
                         currentUser.id === u.id ? 'bg-[#282a35] text-white' : 'text-stone-300'
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-xs"
                           style={{ backgroundColor: u.avatarColor }}
                         >
                           {u.name.charAt(0)}
@@ -368,50 +459,48 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {/* Theme Toggle */}
           <button
             onClick={onToggleTheme}
-            className="p-1.5 rounded-md text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 transition-colors"
             title={darkActive ? 'Switch to Warm Light theme' : 'Switch to Matte Charcoal Dark theme'}
           >
             {darkActive ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4" />}
           </button>
-
-          {/* Reset seed data button */}
-          {onResetData && (
-            <button
-              onClick={onResetData}
-              className="p-1.5 rounded-md text-stone-400 hover:text-rose-300 hover:bg-stone-800 transition-colors"
-              title="Reset Data to PRD Defaults"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 
       {/* Mobile Navigation Drawer */}
       {showMobileMenu && (
-        <div className="md:hidden bg-[#1f2128] border-b border-stone-800 px-4 py-3 space-y-1 animate-in slide-in-from-top-2 duration-150">
+        <div className="md:hidden bg-[#18191f] border-b border-stone-800 px-4 py-3 space-y-1 animate-in slide-in-from-top-2 duration-150">
           <button
             onClick={() => handleNav('home')}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'home' ? 'bg-[#282a35] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+              currentTab === 'home' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span>Workspace Home</span>
+            <span>Workspace</span>
             <span className="text-[10px] text-stone-400">Dashboard</span>
           </button>
           <button
             onClick={() => handleNav('project')}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'project' ? 'bg-[#282a35] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+              currentTab === 'project' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
             <span>Project Overview</span>
             <span className="text-[10px] text-stone-400">Backlog & Workstreams</span>
           </button>
           <button
+            onClick={() => handleNav('board')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
+              currentTab === 'board' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            <span>Working Board</span>
+            <span className="text-[10px] text-stone-400">Interactive Kanban</span>
+          </button>
+          <button
             onClick={() => handleNav('session')}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'session' ? 'bg-[#282a35] text-[#fcd34d] font-bold' : 'text-stone-300 hover:bg-stone-800'
+              currentTab === 'session' ? 'bg-[#242630] text-[#fcd34d] font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
             <span className="flex items-center gap-1.5">
@@ -421,18 +510,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span className="text-[10px] text-stone-400">Live Prioritization</span>
           </button>
           <button
-            onClick={() => handleNav('board')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'board' ? 'bg-[#282a35] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
-            }`}
-          >
-            <span>Project Board</span>
-            <span className="text-[10px] text-stone-400">Kanban View</span>
-          </button>
-          <button
             onClick={() => handleNav('results')}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'results' ? 'bg-[#282a35] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+              currentTab === 'results' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
             <span>Session Results</span>
@@ -441,7 +521,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             onClick={() => handleNav('import')}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'import' ? 'bg-[#282a35] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+              currentTab === 'import' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
             <span className="flex items-center gap-1.5">

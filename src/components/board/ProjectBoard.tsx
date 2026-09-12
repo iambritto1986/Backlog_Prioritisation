@@ -41,6 +41,7 @@ import {
   TrendingUp,
   Flame,
   LayoutGrid,
+  Trash2,
 } from 'lucide-react';
 import { persistenceService } from '../../services/PersistenceService';
 
@@ -51,6 +52,8 @@ interface ProjectBoardProps {
   onBackToOverview: () => void;
   onNavigateHome?: () => void;
   onUpdateCard: (updated: Card) => void;
+  onDeleteCard?: (cardId: string) => void;
+  onAddCard?: (newCard: Card) => void;
 }
 
 const STAGES: DeliveryStage[] = [
@@ -78,6 +81,8 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
   onBackToOverview,
   onNavigateHome,
   onUpdateCard,
+  onDeleteCard,
+  onAddCard,
 }) => {
   const [boardMode, setBoardMode] = useState<
     'priority' | 'disposition' | 'matrix' | 'stage' | 'workstream'
@@ -95,6 +100,19 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
   const [newActionText, setNewActionText] = useState('');
   const [newActionOwner, setNewActionOwner] = useState('');
   const [newActionDue, setNewActionDue] = useState('2026-09-30');
+
+  // Modals
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState<Card | null>(null);
+
+  // New Card Form
+  const [newCardTitle, setNewCardTitle] = useState('');
+  const [newCardDesc, setNewCardDesc] = useState('');
+  const [newCardWs, setNewCardWs] = useState('');
+  const [newCardPriority, setNewCardPriority] = useState<Priority>('P1');
+  const [newCardStage, setNewCardStage] = useState<DeliveryStage>('Requirements');
+  const [newCardOwner, setNewCardOwner] = useState('');
+  const [newCardEta, setNewCardEta] = useState('Q2 2027');
 
   // Load latest assessments for cards in this project
   useEffect(() => {
@@ -139,34 +157,52 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
       return (
         c.title.toLowerCase().includes(q) ||
         c.id.toLowerCase().includes(q) ||
-        c.internalOwner.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q)
+        (c.internalOwner && c.internalOwner.toLowerCase().includes(q)) ||
+        (c.description && c.description.toLowerCase().includes(q))
       );
     }
     return true;
   });
 
-  // Move card priority
-  const handleUpdatePriority = (card: Card, newPrio: Priority) => {
-    const updated: Card = {
-      ...card,
-      currentPriority: newPrio,
+  // Create Card submit
+  const handleCreateCardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCardTitle.trim() || !project) return;
+
+    const ws = project.workstreams.find((w) => w.id === newCardWs) || project.workstreams[0];
+    const wsPrefix = (ws?.name || 'ITM').replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+    const newId = `${wsPrefix}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const cardObj: Card = {
+      id: newId,
+      projectId: project.id,
+      workstreamId: ws?.id || 'ws-general',
+      workstreamName: ws?.name || 'General',
+      title: newCardTitle.trim(),
+      description: newCardDesc.trim(),
+      currentPriority: newCardPriority,
+      currentStage: newCardStage,
+      internalOwner: newCardOwner.trim() || 'TBD',
+      deliveryPartnerOwner: 'TBD',
+      targetDateOrQuarter: newCardEta.trim() || project.targetHorizon,
+      dependencies: '',
+      customFields: {},
+      sourceMeta: {},
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    onUpdateCard(updated);
-  };
 
-  // Move card stage
-  const handleMoveStage = (card: Card, direction: 'prev' | 'next') => {
-    const currentIndex = STAGES.indexOf(card.currentStage);
-    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-    if (newIndex >= 0 && newIndex < STAGES.length) {
-      onUpdateCard({
-        ...card,
-        currentStage: STAGES[newIndex],
-        updatedAt: new Date().toISOString(),
+    if (onAddCard) {
+      onAddCard(cardObj);
+    } else {
+      persistenceService.saveCard(cardObj).then(() => {
+        onUpdateCard(cardObj);
       });
     }
+
+    setNewCardTitle('');
+    setNewCardDesc('');
+    setShowAddCardModal(false);
   };
 
   // Save updated assessment from drawer
@@ -333,7 +369,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
           <div>
             {isTbdOwner ? (
               <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> TBD (Gap)
+                <AlertCircle className="w-3 h-3" /> TBD
               </span>
             ) : (
               <span className="truncate max-w-[120px] font-medium text-stone-700 dark:text-stone-300">
@@ -369,14 +405,21 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
               Interactive Prioritization & Backlog Board
             </h1>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Live collaboration workspace. Click any deliverable to record assessments, story points, discussion notes, and action items.
+              Live collaboration studio. Click any deliverable to record assessments, story points, discussion notes, and action items.
             </p>
           </div>
         </div>
 
-        {/* Filters & View Mode Selector */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Workstream selector */}
+        {/* Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowAddCardModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Deliverable
+          </button>
+
           <select
             value={selectedWsId}
             onChange={(e) => setSelectedWsId(e.target.value)}
@@ -390,7 +433,6 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             ))}
           </select>
 
-          {/* Search box */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
             <input
@@ -440,7 +482,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             }`}
           >
             <Grid className="w-3.5 h-3.5 text-amber-500" />
-            <span>Value vs Effort 2x2 Matrix</span>
+            <span>Value vs Effort Matrix</span>
           </button>
 
           <button
@@ -464,7 +506,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             }`}
           >
             <Kanban className="w-3.5 h-3.5 text-purple-500" />
-            <span>Delivery Stage Kanban</span>
+            <span>Delivery Stages</span>
           </button>
         </div>
 
@@ -561,7 +603,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
         </div>
       )}
 
-      {/* MODE 3: VALUE VS EFFORT 2x2 MATRIX QUAD */}
+      {/* MODE 3: VALUE VS EFFORT MATRIX */}
       {boardMode === 'matrix' && (
         <div className="space-y-4">
           <div className="p-3 bg-stone-100 dark:bg-[#18191c] rounded-xl border border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-300 flex items-center justify-between">
@@ -574,7 +616,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Quad 1: Quick Wins (High Value, Small/Medium Effort) */}
+            {/* Quad 1: Quick Wins */}
             <div className="bg-emerald-500/5 dark:bg-[#1a231f] border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
               <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
                 <div>
@@ -602,7 +644,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
               </div>
             </div>
 
-            {/* Quad 2: Strategic Bets (High Value, Large Effort) */}
+            {/* Quad 2: Strategic Bets */}
             <div className="bg-amber-500/5 dark:bg-[#25221b] border-2 border-amber-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
               <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
                 <div>
@@ -630,7 +672,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
               </div>
             </div>
 
-            {/* Quad 3: Fill-ins / Incremental (Medium/Low Value, Small Effort) */}
+            {/* Quad 3: Fill-ins */}
             <div className="bg-blue-500/5 dark:bg-[#1b2028] border-2 border-blue-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
               <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
                 <div>
@@ -658,7 +700,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
               </div>
             </div>
 
-            {/* Quad 4: Thankless Tasks (Low Value, Large Effort) */}
+            {/* Quad 4: Reconsider / Drop */}
             <div className="bg-stone-500/5 dark:bg-[#202022] border-2 border-stone-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
               <div className="flex items-center justify-between pb-2 border-b border-stone-500/20">
                 <div>
@@ -734,10 +776,10 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
         </div>
       )}
 
-      {/* MODE 5: DELIVERY STAGE KANBAN */}
+      {/* MODE 5: DELIVERY STAGES */}
       {boardMode === 'stage' && (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
-          {STAGES.map((stage, sIdx) => {
+          {STAGES.map((stage) => {
             const stageCards = filteredCards.filter((c) => c.currentStage === stage);
 
             return (
@@ -746,7 +788,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                 className="bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] rounded-2xl p-3.5 flex flex-col min-w-[240px] min-h-[480px] space-y-3"
               >
                 <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-                  <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                  <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider truncate">
                     {stage}
                   </h3>
                   <span className="text-xs font-mono font-bold px-2 py-0.2 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300">
@@ -806,7 +848,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                     : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
                 }`}
               >
-                Working Session & Prioritization
+                Working Session & Sizing
               </button>
               <button
                 onClick={() => setActiveDrawerTab('actions')}
@@ -816,7 +858,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                     : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
                 }`}
               >
-                Action Items ({cardActions.length})
+                Actions ({cardActions.length})
               </button>
               <button
                 onClick={() => setActiveDrawerTab('comments')}
@@ -830,12 +872,12 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
               </button>
             </div>
 
-            {/* Scrollable Drawer Body */}
+            {/* Drawer Body */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs text-stone-800 dark:text-stone-200">
-              {/* TAB 1: WORKING SESSION & PRIORITIZATION */}
+              {/* TAB 1: ASSESSMENT */}
               {activeDrawerTab === 'assessment' && (
                 <div className="space-y-4">
-                  {/* Priority & Disposition Grid */}
+                  {/* Disposition & Proposed Priority */}
                   <div className="grid grid-cols-2 gap-3 bg-stone-50 dark:bg-[#18191c] p-3.5 rounded-xl border border-stone-200 dark:border-stone-800">
                     <div>
                       <label className="block font-bold text-stone-800 dark:text-stone-200 mb-1">
@@ -887,7 +929,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                     </div>
                   </div>
 
-                  {/* Quad Sizing Attributes */}
+                  {/* 2x2 Matrix Dimensions */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     <div>
                       <label className="block font-semibold text-stone-600 dark:text-stone-400 mb-1">
@@ -957,7 +999,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
 
                     <div>
                       <label className="block font-semibold text-stone-600 dark:text-stone-400 mb-1">
-                        Effort
+                        Effort Sizing
                       </label>
                       <select
                         value={assessmentsMap[selectedCardForDrawer.id]?.effort || 'Unknown'}
@@ -978,7 +1020,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                     </div>
                   </div>
 
-                  {/* Story Points & Workstream Rank */}
+                  {/* Story Points & Rank */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
@@ -1039,7 +1081,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                     />
                   </div>
 
-                  {/* Team Rationale / Discussion Notes */}
+                  {/* Discussion Notes */}
                   <div>
                     <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
                       Team Rationale & Discussion Notes
@@ -1073,13 +1115,13 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: ACTION ITEMS */}
+              {/* TAB 2: ACTIONS */}
               {activeDrawerTab === 'actions' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
                     {cardActions.length === 0 ? (
                       <div className="p-6 text-center text-stone-400">
-                        No follow-up action items created for this deliverable yet.
+                        No follow-up action items recorded for this deliverable yet.
                       </div>
                     ) : (
                       cardActions.map((act) => (
@@ -1134,7 +1176,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: DISCUSSION & COMMENTS */}
+              {/* TAB 3: DISCUSSION */}
               {activeDrawerTab === 'comments' && (
                 <div className="space-y-4">
                   <div className="space-y-2.5 max-h-72 overflow-y-auto">
@@ -1168,7 +1210,7 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                   <form onSubmit={handleAddComment} className="flex gap-2 pt-2 border-t border-stone-200 dark:border-stone-800">
                     <input
                       type="text"
-                      placeholder="Add discussion note or comment..."
+                      placeholder="Add discussion note..."
                       value={newCommentText}
                       onChange={(e) => setNewCommentText(e.target.value)}
                       className="flex-1 px-3 py-1.5 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c]"
@@ -1186,14 +1228,170 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
 
             {/* Drawer Footer */}
             <div className="p-4 bg-stone-50 dark:bg-[#18191c] border-t border-stone-200 dark:border-stone-800 flex items-center justify-between shrink-0">
-              <span className="text-[11px] text-stone-400">
-                All changes automatically saved to local persistence.
-              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const card = selectedCardForDrawer;
+                  setSelectedCardForDrawer(null);
+                  setCardToDelete(card);
+                }}
+                className="text-rose-500 hover:underline text-xs font-semibold flex items-center gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Deliverable
+              </button>
+
               <button
                 onClick={() => setSelectedCardForDrawer(null)}
                 className="px-4 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD DELIVERABLE */}
+      {showAddCardModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+              Add Deliverable Card
+            </h3>
+            <form onSubmit={handleCreateCardSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  Deliverable Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Clinical Telemetry Kafka Stream"
+                  value={newCardTitle}
+                  onChange={(e) => setNewCardTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-sm focus:outline-none focus:border-[#d4af37]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  Workstream
+                </label>
+                <select
+                  value={newCardWs || project.workstreams[0]?.id}
+                  onChange={(e) => setNewCardWs(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-xs"
+                >
+                  {project.workstreams.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  Description & Key Initiatives
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Scope, technical requirements, or dependencies..."
+                  value={newCardDesc}
+                  onChange={(e) => setNewCardDesc(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Initial Priority
+                  </label>
+                  <select
+                    value={newCardPriority}
+                    onChange={(e) => setNewCardPriority(e.target.value as Priority)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-xs"
+                  >
+                    <option value="P0">P0 (Critical)</option>
+                    <option value="P1">P1 (High)</option>
+                    <option value="P2">P2 (Medium)</option>
+                    <option value="P3">P3 (Low)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Internal Owner
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Britto Thomas (or TBD)"
+                    value={newCardOwner}
+                    onChange={(e) => setNewCardOwner(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCardModal(false)}
+                  className="px-4 py-2 rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold shadow-md transition-colors"
+                >
+                  Create Deliverable
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE CARD CONFIRMATION */}
+      {cardToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#20222a] rounded-2xl border border-stone-200 dark:border-stone-700 max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Delete Deliverable</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Card ID: {cardToDelete.id}</p>
+              </div>
+            </div>
+            <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
+              Are you sure you want to delete <strong className="text-stone-900 dark:text-stone-100 font-semibold">"{cardToDelete.title}"</strong>?
+            </p>
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+              <button
+                type="button"
+                onClick={() => setCardToDelete(null)}
+                className="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteCard) {
+                    onDeleteCard(cardToDelete.id);
+                  } else {
+                    persistenceService.deleteCard(cardToDelete.id);
+                  }
+                  setCardToDelete(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Deliverable
               </button>
             </div>
           </div>

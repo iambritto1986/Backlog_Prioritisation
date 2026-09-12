@@ -55,7 +55,6 @@ export default function App() {
   }, []);
 
   const initApp = async () => {
-    // Check if persistence has data, else seed
     let storedProjects = await persistenceService.getProjects();
     if (storedProjects.length === 0) {
       for (const p of SEED_PROJECTS) {
@@ -115,7 +114,14 @@ export default function App() {
   const handleSwitchUser = (user: User) => {
     authService.setCurrentUser(user);
     setCurrentUser(user);
-    showToast(`Switched active user to ${user.name} (${user.role})`);
+    showToast(`Active persona switched to ${user.name} (${user.role})`);
+  };
+
+  // Reset to default seed data
+  const handleResetData = async () => {
+    await persistenceService.resetToDefaults();
+    await initApp();
+    showToast('Reset workspace data to PRD defaults.');
   };
 
   // Toggle Theme
@@ -165,6 +171,28 @@ export default function App() {
     showToast(`Created project "${name}" successfully.`);
   };
 
+  // Delete Project handler
+  const handleDeleteProject = async (projectId: string) => {
+    await persistenceService.deleteProject(projectId);
+    const updatedProjects = await persistenceService.getProjects();
+    const updatedSessions = await persistenceService.getSessions();
+    setProjects(updatedProjects);
+    setSessions(updatedSessions);
+
+    if (selectedProjectId === projectId) {
+      const nextProj = updatedProjects[0] || null;
+      setSelectedProjectId(nextProj ? nextProj.id : '');
+      if (nextProj) {
+        const nextCards = await persistenceService.getCards(nextProj.id);
+        setCards(nextCards);
+      } else {
+        setCards([]);
+      }
+      setActiveView('home');
+    }
+    showToast('Project deleted successfully.');
+  };
+
   // Create Planning Session handler
   const handleCreateSessionSubmit = async (
     sessionData: Omit<PlanningSession, 'id' | 'createdAt' | 'updatedAt' | 'version'>
@@ -186,7 +214,32 @@ export default function App() {
     showToast(`Launched planning session "${newSession.name}"!`);
   };
 
-  // Update card in board or overview
+  // Delete Session handler
+  const handleDeleteSession = async (sessionId: string) => {
+    await persistenceService.deleteSession(sessionId);
+    const updated = await persistenceService.getSessions();
+    setSessions(updated);
+
+    if (selectedSessionId === sessionId) {
+      const nextSess = updated.find((s) => s.projectId === selectedProjectId) || updated[0] || null;
+      setSelectedSessionId(nextSess ? nextSess.id : '');
+      if (activeView === 'session_room' || activeView === 'session_results') {
+        setActiveView(nextSess ? 'session_room' : 'project_overview');
+      }
+    }
+    showToast('Planning session deleted.');
+  };
+
+  // Duplicate Session handler
+  const handleDuplicateSession = async (sessionId: string) => {
+    const duplicated = await persistenceService.duplicateSession(sessionId);
+    const updated = await persistenceService.getSessions();
+    setSessions(updated);
+    setSelectedSessionId(duplicated.id);
+    showToast(`Duplicated session as "${duplicated.name}".`);
+  };
+
+  // Card Handlers
   const handleUpdateCard = async (updated: Card) => {
     await persistenceService.saveCard(updated);
     const updatedCards = await persistenceService.getCards(selectedProjectId);
@@ -194,7 +247,21 @@ export default function App() {
     showToast(`Updated deliverable "${updated.title}".`);
   };
 
-  // Add workstream
+  const handleAddCard = async (newCard: Card) => {
+    await persistenceService.createCard(newCard);
+    const updatedCards = await persistenceService.getCards(selectedProjectId);
+    setCards(updatedCards);
+    showToast(`Added deliverable "${newCard.title}".`);
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    await persistenceService.deleteCard(cardId);
+    const updatedCards = await persistenceService.getCards(selectedProjectId);
+    setCards(updatedCards);
+    showToast('Deliverable card deleted.');
+  };
+
+  // Workstream Handlers
   const handleAddWorkstream = async (name: string, lead: string, color: string) => {
     const currentProj = projects.find((p) => p.id === selectedProjectId);
     if (!currentProj) return;
@@ -220,44 +287,72 @@ export default function App() {
     showToast(`Added workstream "${name}".`);
   };
 
-  // Import completed
+  const handleDeleteWorkstream = async (workstreamId: string) => {
+    await persistenceService.deleteWorkstream(selectedProjectId, workstreamId);
+    const all = await persistenceService.getProjects();
+    setProjects(all);
+    showToast('Workstream deleted.');
+  };
+
+  const handleUpdateWorkstream = async (workstream: Workstream) => {
+    await persistenceService.updateWorkstream(selectedProjectId, workstream);
+    const all = await persistenceService.getProjects();
+    setProjects(all);
+    showToast(`Updated workstream "${workstream.name}".`);
+  };
+
+  // Import completed (with Automatic Workstream Formulation)
   const handleImportComplete = async (importedCards: Card[], appendMode: boolean) => {
+    const currentProj = projects.find((p) => p.id === selectedProjectId);
+    const PALETTE = ['#dc2626', '#d97706', '#2563eb', '#059669', '#7c3aed', '#0284c7', '#e11d48', '#4f46e5'];
+
+    if (currentProj) {
+      const existingWsNames = new Set(currentProj.workstreams.map((w) => w.name.toLowerCase().trim()));
+      const newWorkstreams: Workstream[] = [];
+
+      importedCards.forEach((card) => {
+        const wsName = (card.workstreamName || 'General').trim();
+        if (wsName && !existingWsNames.has(wsName.toLowerCase())) {
+          existingWsNames.add(wsName.toLowerCase());
+          const wsId = `ws-${wsName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
+          const color = PALETTE[(currentProj.workstreams.length + newWorkstreams.length) % PALETTE.length];
+          newWorkstreams.push({
+            id: wsId,
+            projectId: currentProj.id,
+            name: wsName,
+            leadName: card.internalOwner || 'TBD Lead',
+            color,
+            displayOrder: currentProj.workstreams.length + newWorkstreams.length + 1,
+          });
+        }
+      });
+
+      if (newWorkstreams.length > 0) {
+        const updatedProj: Project = {
+          ...currentProj,
+          workstreams: [...currentProj.workstreams, ...newWorkstreams],
+          updatedAt: new Date().toISOString(),
+        };
+        await persistenceService.saveProject(updatedProj);
+        const allProj = await persistenceService.getProjects();
+        setProjects(allProj);
+      }
+    }
+
     await persistenceService.saveCards(importedCards);
     const refreshed = await persistenceService.getCards(selectedProjectId);
     setCards(refreshed);
     setActiveView('project_overview');
-    showToast(`Successfully imported ${importedCards.length} deliverable cards!`);
-  };
-
-  // Delete Project handler
-  const handleDeleteProject = async (projectId: string) => {
-    await persistenceService.deleteProject(projectId);
-    const updatedProjects = await persistenceService.getProjects();
-    const updatedSessions = await persistenceService.getSessions();
-    setProjects(updatedProjects);
-    setSessions(updatedSessions);
-
-    if (selectedProjectId === projectId) {
-      const nextProj = updatedProjects[0] || null;
-      setSelectedProjectId(nextProj ? nextProj.id : '');
-      if (nextProj) {
-        const nextCards = await persistenceService.getCards(nextProj.id);
-        setCards(nextCards);
-      } else {
-        setCards([]);
-      }
-      setActiveView('home');
-    }
-    showToast('Project deleted successfully.');
+    showToast(`Imported ${importedCards.length} deliverable cards!`);
   };
 
   // Active object references
   const currentProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || sessions[0];
-  const projectCards = cards.filter((c) => c.projectId === selectedProjectId);
+  const projectCards = cards.filter((c) => c.projectId === (currentProject?.id || ''));
 
   return (
-    <div className={`min-h-screen bg-[#faf9f5] dark:bg-[#18191c] text-stone-900 dark:text-stone-100 flex flex-col font-sans transition-colors ${isDarkTheme ? 'dark' : ''}`}>
+    <div className={`min-h-screen bg-[#faf9f5] dark:bg-[#141518] text-stone-900 dark:text-stone-100 flex flex-col font-sans transition-colors ${isDarkTheme ? 'dark' : ''}`}>
       {/* Global Application Header */}
       <AppHeader
         activeView={activeView}
@@ -295,6 +390,7 @@ export default function App() {
         onNavigateResults={() => setActiveView('session_results')}
         onOpenImport={() => setActiveView('import_wizard')}
         onOpenVerification={() => setShowVerificationModal(true)}
+        onResetData={handleResetData}
         onSwitchUser={handleSwitchUser}
         onToggleTheme={handleToggleTheme}
       />
@@ -324,6 +420,7 @@ export default function App() {
             }}
             onCreateProject={handleCreateProject}
             onDeleteProject={handleDeleteProject}
+            onDeleteSession={handleDeleteSession}
             onOpenImport={() => setActiveView('import_wizard')}
           />
         )}
@@ -342,9 +439,16 @@ export default function App() {
               setActiveView('session_room');
             }}
             onCreateSessionClick={() => setShowCreateSessionModal(true)}
+            onDeleteSession={handleDeleteSession}
+            onDuplicateSession={handleDuplicateSession}
             onOpenImport={() => setActiveView('import_wizard')}
             onOpenBoard={() => setActiveView('project_board')}
             onAddWorkstream={handleAddWorkstream}
+            onDeleteWorkstream={handleDeleteWorkstream}
+            onUpdateWorkstream={handleUpdateWorkstream}
+            onAddCard={handleAddCard}
+            onDeleteCard={handleDeleteCard}
+            onUpdateCard={handleUpdateCard}
           />
         )}
 
@@ -374,6 +478,8 @@ export default function App() {
             onBackToOverview={() => setActiveView('project_overview')}
             onNavigateHome={() => setActiveView('home')}
             onUpdateCard={handleUpdateCard}
+            onDeleteCard={handleDeleteCard}
+            onAddCard={handleAddCard}
           />
         )}
 
@@ -385,8 +491,6 @@ export default function App() {
             cards={projectCards}
             currentUser={currentUser}
             onBackToSession={() => setActiveView('session_room')}
-            onNavigateHome={() => setActiveView('home')}
-            onNavigateOverview={() => setActiveView('project_overview')}
             onSessionUpdated={(updated) => {
               setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
             }}

@@ -11,6 +11,7 @@ import {
   PresenceState,
   VersionSnapshot,
   Role,
+  Workstream,
 } from '../types';
 
 export interface IAuthService {
@@ -34,13 +35,21 @@ export interface IPersistenceService {
   getCards(projectId: string): Promise<Card[]>;
   getCard(id: string): Promise<Card | null>;
   saveCards(cards: Card[]): Promise<void>;
+  saveCard(card: Card): Promise<void>;
   updateCard(card: Card): Promise<void>;
+  deleteCard(id: string): Promise<void>;
+  createCard(card: Card): Promise<Card>;
 
-  getSessions(projectId: string): Promise<PlanningSession[]>;
+  getSessions(projectId?: string): Promise<PlanningSession[]>;
   getSession(id: string): Promise<PlanningSession | null>;
   saveSession(session: PlanningSession): Promise<void>;
+  deleteSession(sessionId: string): Promise<void>;
+  duplicateSession(sessionId: string): Promise<PlanningSession>;
   closeSession(sessionId: string, closedBy: string, summary: string): Promise<VersionSnapshot>;
   reopenSession(sessionId: string): Promise<PlanningSession>;
+
+  deleteWorkstream(projectId: string, workstreamId: string): Promise<void>;
+  updateWorkstream(projectId: string, workstream: Workstream): Promise<void>;
 
   getAssessments(sessionId: string): Promise<Record<string, SessionAssessment>>;
   getAssessment(sessionId: string, cardId: string): Promise<SessionAssessment | null>;
