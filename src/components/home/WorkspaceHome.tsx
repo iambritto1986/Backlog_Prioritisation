@@ -446,7 +446,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g., AVMAIS Implementation 2027"
+                  placeholder="e.g., Nova Platform Modernization 2027"
                   value={newProjName}
                   onChange={(e) => setNewProjName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-sm focus:outline-none focus:border-[#d4af37]"

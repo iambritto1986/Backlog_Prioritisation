@@ -97,7 +97,7 @@ export interface Workstream {
 }
 
 export interface Card {
-  id: string; // Stable card ID (e.g. REC-101, AVMAIS-042)
+  id: string; // Stable card ID (e.g. REC-101, NOVA-042)
   projectId: string;
   workstreamId: string;
   workstreamName: string;

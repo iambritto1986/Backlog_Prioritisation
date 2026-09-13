@@ -26,7 +26,7 @@ export const PrdAcceptanceModal: React.FC<PrdAcceptanceModalProps> = ({ onClose 
       title: '1. Brand Agnosticism & Multi-Project Foundation',
       items: [
         {
-          text: 'AVMAIS is an example project, not hardcoded product brand',
+          text: 'Nova Platform Modernization is an example project, not hardcoded product brand',
           detail: 'User can create arbitrary new projects (e.g. Pearl Platform, Horizon 2028), customize impact labels, and switch workspaces.',
           status: 'verified',
         },

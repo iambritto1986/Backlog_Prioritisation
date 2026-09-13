@@ -874,6 +874,34 @@ export function setPersistenceAuthMode(mode: PersistenceAuthMode): void {
     resolveAuthMode(mode);
     resolveAuthMode = null;
   }
+  if (mode === 'signed_in') {
+    purgeStaleLocalCacheOnce();
+  }
+}
+
+// This browser's localStorage was, for many months before the real backend
+// existed, the ONLY place any data lived — including the two hardcoded demo
+// projects ("Nova Platform Modernization 2027" / "Billing & Payments
+// Modernization" in src/data/seedData.ts) that initApp() seeds whenever it
+// sees an empty project list. A signed-in user's data now lives in Postgres
+// and should never fall back to reading that old local cache — but
+// PersistenceService.withFallback() *will* fall back to it if a real API
+// call ever throws (network hiccup, a transient 5xx, a rate limit).
+// Without this, that fallback can surface the old demo projects/cards as if
+// they were real, indistinguishable from "my data came back" — exactly what
+// was reported after the first real-backend deploy. Clearing it the first
+// time a browser is confirmed signed-in removes that stale data from the
+// equation entirely: a fallback during a real hiccup now shows "no data
+// right now" instead of quietly substituting months-old demo content.
+let localCachePurged = false;
+function purgeStaleLocalCacheOnce(): void {
+  if (localCachePurged) return;
+  localCachePurged = true;
+  try {
+    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — nothing to purge.
+  }
 }
 
 async function resolveSignedIn(): Promise<boolean> {
@@ -888,6 +916,14 @@ async function resolveSignedIn(): Promise<boolean> {
     new Promise<PersistenceAuthMode>((resolve) => setTimeout(() => resolve('guest'), 6000)),
   ]);
   return mode === 'signed_in';
+}
+
+// Exposed so App.tsx's first-run "seed demo data" convenience can skip
+// itself entirely once a real backend is in play — see the comment on that
+// call site for why writing fabricated demo rows into a signed-in user's
+// real, shared Postgres workspace is a correctness bug, not a UX nicety.
+export async function isRealBackendActive(): Promise<boolean> {
+  return resolveSignedIn();
 }
 
 export class PersistenceService implements IPersistenceService {

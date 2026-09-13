@@ -43,6 +43,18 @@ const fromDbDisposition = (v) => DISPOSITION_FROM_DB[v] || v;
 
 const iso = (d) => (d ? new Date(d).toISOString() : undefined);
 
+// PlanningSession.date and FollowUpAction.dueDate are DateTime columns in
+// Postgres (needed for sane sorting/comparison), but the frontend treats
+// both as plain "YYYY-MM-DD" strings — fed directly into <input type="date">
+// (which silently renders blank given anything else) and displayed as-is in
+// several places (e.g. SessionRoom's "Due: {action.dueDate}"). Serializing
+// them with the full `iso()` helper above round-trips a clean
+// "2026-09-24" into "2026-09-24T00:00:00.000Z", which is what actually
+// showed up in the UI once sessions started coming from the real backend
+// instead of localStorage (which just stored the original string verbatim).
+// This strips it back down to the date-only portion these fields need.
+const dateOnly = (d) => (d ? new Date(d).toISOString().slice(0, 10) : undefined);
+
 // ---------------------------------------------------------------------------
 // Plan / trial / invite-limit logic
 // ---------------------------------------------------------------------------
@@ -125,7 +137,7 @@ function serializeSession(s) {
     id: s.id,
     projectId: s.projectId,
     name: s.name,
-    date: iso(s.date),
+    date: dateOnly(s.date) || '',
     timeZone: s.timeZone,
     objective: s.objective || '',
     deliveryHorizon: s.deliveryHorizon || '',
@@ -185,7 +197,7 @@ function serializeAction(a) {
     cardId: a.cardId,
     action: a.action,
     owner: a.owner,
-    dueDate: a.dueDate ? iso(a.dueDate) : '',
+    dueDate: dateOnly(a.dueDate) || '',
     status: a.status,
     createdAt: iso(a.createdAt),
   };

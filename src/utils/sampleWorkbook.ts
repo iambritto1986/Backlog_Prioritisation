@@ -1,27 +1,28 @@
 import * as XLSX from 'xlsx';
 
 /**
- * Creates an in-memory sample XLSX workbook representing the AVMAIS Implementation 2027 project
+ * Creates an in-memory sample XLSX workbook representing the Nova Platform Modernization 2027 project
  * matching all fields from PRD Section 4, 5, and 6.
  */
-export function generateSampleAvmaisWorkbook(): Uint8Array {
+export function generateSampleNovaWorkbook(): Uint8Array {
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: AVMAIS_Backlog (Active items with open assessments)
+  // Sheet 1: Nova_Backlog (Active items with open assessments)
+
   const headers = [
     'Record ID',
     'Workstream',
     'Deliverable',
     'Initiatives / Activities',
     'Workstream Lead',
-    'Existing AVMAIS Owner',
+    'Existing Nova Owner',
     'Pearl Owner',
     'Current Priority',
     'Current Status',
     'Existing ETA',
     'Dependencies / Notes',
     'Business Value',
-    'Member Impact',
+    'Customer Impact',
     'Urgency',
     'Effort',
     'Workstream Rank',
@@ -32,10 +33,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
 
   const rows = [
     [
-      'AVM-101',
+      'NOVA-101',
       'Security & Compliance',
       'FedRAMP & HIPAA Readiness Audit',
-      'Engage external assessor to validate veterinary record confidentiality and cryptographic data at rest controls.',
+      'Engage external assessor to validate customer record confidentiality and cryptographic data at rest controls.',
       'Arthur Dent',
       'Arthur Dent',
       'Pearl SecOps Team',
@@ -50,10 +51,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       1,
       'Selected',
       'Full FedRAMP readiness clearance by March 2027 to unblock state contract renewals.',
-      'Non-negotiable compliance requirement for institutional veterinary association members.',
+      'Non-negotiable compliance requirement for institutional enterprise customers.',
     ],
     [
-      'AVM-102',
+      'NOVA-102',
       'Security & Compliance',
       'Zero-Trust Role-Based Access Matrix',
       'Consolidate 14 legacy authorization silos into standardized unified claims token format.',
@@ -74,10 +75,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       'Reduces friction for partner federation; development already 40% complete.',
     ],
     [
-      'AVM-201',
+      'NOVA-201',
       'Data Pipeline & Migration',
       'Legacy SQL Database Schema Extract & Parquet Lakehouse Sync',
-      'Batch extract 18 million historical veterinary practitioner records into Apache Iceberg storage format.',
+      'Batch extract 18 million historical customer account records into Apache Iceberg storage format.',
       'Britto Thomas',
       'Britto Thomas',
       'Pearl Data Engineering',
@@ -95,7 +96,7 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       'Foundational dependency for portal renewal and directory verification features.',
     ],
     [
-      'AVM-202',
+      'NOVA-202',
       'Data Pipeline & Migration',
       'Real-time Telemetry & Audit Stream Ingestion',
       'Kafka/PubSub streaming service for member clicks, license lookups, and accreditation verifications.',
@@ -116,10 +117,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       'Currently lacks accountable internal owner (listed as TBD). Cannot prioritize without lead.',
     ],
     [
-      'AVM-301',
+      'NOVA-301',
       'Member Experience & Portal',
-      'Veterinary Certification Self-Service Renewal Workflow',
-      'Responsive multi-step submission portal allowing members to upload continuing education proof and pay dues.',
+      'Subscription Self-Service Renewal Workflow',
+      'Responsive multi-step submission portal allowing customers to upload certification proof and pay renewal fees.',
       'Sarah Jenkins',
       'Sarah Jenkins',
       'Pearl UX Studio',
@@ -134,10 +135,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       1,
       'Selected',
       'Member self-service renewals live ahead of June 2027 accreditation cycle.',
-      'Primary source of association annual dues revenue and membership retention.',
+      'Primary source of subscription revenue and customer retention.',
     ],
     [
-      'AVM-302',
+      'NOVA-302',
       'Member Experience & Portal',
       'Directory Search & Practitioner Verification Badge',
       'Public-facing fast lookup for accredited veterinarians with geolocated clinic results.',
@@ -158,10 +159,10 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       'Valuable consumer trust signal, but renewal engine takes priority.',
     ],
     [
-      'AVM-401',
+      'NOVA-401',
       'Integration & Pearl Connectors',
       'Pearl B2B Bi-Directional Webhook Dispatcher',
-      'Secure mutual TLS event bus informing Pearl partner systems of membership credential status changes.',
+      'Secure mutual TLS event bus informing Pearl partner systems of customer credential status changes.',
       'Marcus Chen',
       'Britto Thomas',
       'Marcus Chen',
@@ -179,7 +180,7 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       'Eliminates weekly manual CSV reconciliation emails between organizations.',
     ],
     [
-      'AVM-402',
+      'NOVA-402',
       'Integration & Pearl Connectors',
       'State Licensing Board API Sync Adapter',
       'Automated nightly sync with 50 jurisdiction boards to reconcile suspended or expired licenses.',
@@ -200,7 +201,7 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
       '50 state boards lack uniform APIs; high maintenance overhead for small benefit.',
     ],
     [
-      'AVM-501',
+      'NOVA-501',
       'Cloud Infrastructure & Ops',
       'Multi-Region Kubernetes Disaster Recovery Failover',
       'Deploy automated active-passive failover between us-east1 and us-west1 with 15-minute RTO target.',
@@ -223,13 +224,13 @@ export function generateSampleAvmaisWorkbook(): Uint8Array {
   ];
 
   const wsBacklog = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  XLSX.utils.book_append_sheet(wb, wsBacklog, 'AVMAIS_Backlog');
+  XLSX.utils.book_append_sheet(wb, wsBacklog, 'Nova_Backlog');
 
   // Sheet 2: Delivered_Items (Demonstrating multi-sheet workbook per PRD Section 5)
   const deliveredHeaders = ['Record ID', 'Workstream', 'Deliverable', 'Owner', 'Delivery Date', 'Stage'];
   const deliveredRows = [
-    ['AVM-502', 'Cloud Infrastructure & Ops', 'Synthetic Uptime & API Latency APM Monitoring', 'Priya Patel', 'August 2026', 'Delivered'],
-    ['AVM-103', 'Security & Compliance', 'Baseline TLS 1.3 Cipher Suite Enforcement', 'Arthur Dent', 'July 2026', 'Delivered'],
+    ['NOVA-502', 'Cloud Infrastructure & Ops', 'Synthetic Uptime & API Latency APM Monitoring', 'Priya Patel', 'August 2026', 'Delivered'],
+    ['NOVA-103', 'Security & Compliance', 'Baseline TLS 1.3 Cipher Suite Enforcement', 'Arthur Dent', 'July 2026', 'Delivered'],
   ];
   const wsDelivered = XLSX.utils.aoa_to_sheet([deliveredHeaders, ...deliveredRows]);
   XLSX.utils.book_append_sheet(wb, wsDelivered, 'Delivered_Items');

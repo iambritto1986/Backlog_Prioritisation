@@ -10,7 +10,7 @@ import {
   Workstream,
 } from './types';
 import { SEED_WORKSPACE, SEED_PROJECTS, SEED_CARDS, SEED_SESSIONS, SEED_USERS } from './data/seedData';
-import { persistenceService, setPersistenceAuthMode } from './services/PersistenceService';
+import { persistenceService, setPersistenceAuthMode, isRealBackendActive } from './services/PersistenceService';
 import { authService } from './services/AuthService';
 import { presenceService } from './services/PresenceService';
 import { AppHeader } from './components/layout/AppHeader';
@@ -258,7 +258,20 @@ export default function App() {
 
     // 3. Regular stored projects initialization
     let storedProjects = await persistenceService.getProjects();
-    if (storedProjects.length === 0) {
+    // Seed the two demo projects ONLY for the local/guest experience — never
+    // against the real backend. This used to run unconditionally whenever
+    // getProjects() came back empty, which is exactly right for a fresh
+    // browser that has never touched localStorage, but is a real bug for a
+    // signed-in user: their workspace is the one real, shared Postgres
+    // database, so "0 projects" can legitimately mean "I deleted everything
+    // on purpose" — auto-fabricating "Nova Platform Modernization 2027"/"Billing &
+    // Payments Modernization" back into that real database made a deliberate
+    // delete look like it silently undid itself. It's also why a reseeded
+    // project could end up with workstreams but no cards/session: this loop
+    // has no error handling, so if any one write in the middle fails, the
+    // rest silently never runs, leaving a half-seeded project behind that's
+    // hard to distinguish from "my data disappeared."
+    if (storedProjects.length === 0 && !(await isRealBackendActive())) {
       for (const p of SEED_PROJECTS) {
         await persistenceService.saveProject(p);
       }

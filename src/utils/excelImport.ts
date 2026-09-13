@@ -114,7 +114,6 @@ export function detectHeaderRow(rawRows: any[][]): number {
     'origpriority',
     'owner',
     'internalowner',
-    'avmaisowner',
     'pearlowner',
     'lead',
     'workstreamlead',
@@ -294,7 +293,7 @@ export function suggestColumnMappings(headers: string[]): ColumnMappingConfig {
       'summary',
     ]),
     internalOwnerCol: findStrict(
-      ['avmaisowner', 'internalowner', 'clientowner', 'orgowner', 'primaryowner', 'owner', 'assignee'],
+      ['internalowner', 'clientowner', 'orgowner', 'primaryowner', 'owner', 'assignee'],
       ['pearl', 'partner', 'vendor', 'lead', 'delivery']
     ),
     deliveryPartnerOwnerCol: findStrict([

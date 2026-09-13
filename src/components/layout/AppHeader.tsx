@@ -133,41 +133,51 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {isSignedIn ? (
             <div className="flex items-center gap-1.5">
               <div className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/60 transition-all shadow-xs">
-                <UserButton
-                  appearance={{
-                    variables: {
-                      colorPrimary: '#d4af37',
-                      colorBackground: '#121318',
-                      colorText: '#e5e7eb',
-                      colorTextSecondary: '#a8a29e',
-                      colorInputBackground: '#18191c',
-                      colorInputText: '#e5e7eb',
-                      borderRadius: '0.75rem',
-                    },
-                    elements: {
-                      // avatarBox alone only sizes the circular image — Clerk's
-                      // own trigger button around it (userButtonBox /
-                      // userButtonTrigger) keeps its default padding and a
-                      // reserved-width layout regardless, which read as a big
-                      // empty gap between the avatar and the name span next to
-                      // it. Zeroing those out makes the button hug the avatar
-                      // exactly, so gap-2 on the parent pill is the only
-                      // spacing between the avatar and the name.
-                      avatarBox: 'w-7 h-7',
-                      userButtonBox: 'flex-none w-7 h-7 flex items-center justify-center',
-                      userButtonTrigger: 'p-0 m-0 w-7 h-7 rounded-full focus:shadow-none',
-                      userButtonOuterIdentifier: 'hidden',
-                      userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
-                      userButtonPopoverMain: 'bg-[#121318]',
-                      userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
-                      userButtonPopoverActionButtonText: 'text-[#e5e7eb]',
-                      userButtonPopoverActionButtonIcon: 'text-[#a8a29e]',
-                      userButtonPopoverFooter: 'hidden',
-                      userPreviewMainIdentifier: 'text-[#e5e7eb]',
-                      userPreviewSecondaryIdentifier: 'text-[#a8a29e]',
-                    },
-                  }}
-                />
+                {/* The `elements.userButtonBox`/`userButtonTrigger` Tailwind-class
+                    overrides below (kept for the color/spacing they do
+                    control) do NOT reliably shrink Clerk's own trigger box —
+                    confirmed live: even after that attempt, a visible gap
+                    remained between the avatar and the name next to it.
+                    Clerk's internal stylesheet is injected at runtime, after
+                    this app's own CSS, so an equal-specificity `!important`
+                    rule of ours can lose that fight regardless of which
+                    class name it targets. Wrapping the trigger in a fixed
+                    28x28px `overflow-hidden` box sidesteps that entirely —
+                    it clips whatever width Clerk's own button actually
+                    renders at down to just the avatar (which sits flush at
+                    its top-left corner), independent of Clerk's internal
+                    CSS. Clerk's popover portals to `document.body` when
+                    opened, so it isn't a child of this box and never gets
+                    clipped. */}
+                <div className="w-7 h-7 shrink-0 overflow-hidden rounded-full">
+                  <UserButton
+                    appearance={{
+                      variables: {
+                        colorPrimary: '#d4af37',
+                        colorBackground: '#121318',
+                        colorText: '#e5e7eb',
+                        colorTextSecondary: '#a8a29e',
+                        colorInputBackground: '#18191c',
+                        colorInputText: '#e5e7eb',
+                        borderRadius: '0.75rem',
+                      },
+                      elements: {
+                        avatarBox: 'w-7 h-7',
+                        userButtonBox: 'flex-none w-7 h-7 flex items-center justify-center',
+                        userButtonTrigger: 'p-0 m-0 w-7 h-7 rounded-full focus:shadow-none',
+                        userButtonOuterIdentifier: 'hidden',
+                        userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
+                        userButtonPopoverMain: 'bg-[#121318]',
+                        userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
+                        userButtonPopoverActionButtonText: 'text-[#e5e7eb]',
+                        userButtonPopoverActionButtonIcon: 'text-[#a8a29e]',
+                        userButtonPopoverFooter: 'hidden',
+                        userPreviewMainIdentifier: 'text-[#e5e7eb]',
+                        userPreviewSecondaryIdentifier: 'text-[#a8a29e]',
+                      },
+                    }}
+                  />
+                </div>
                 <span className="font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate text-xs">
                   {currentUser.name}
                 </span>

@@ -29,7 +29,7 @@ import {
   ImportCandidateRow,
   OwnerResolutionInfo,
 } from '../../utils/excelImport';
-import { generateSampleAvmaisWorkbook } from '../../utils/sampleWorkbook';
+import { generateSampleNovaWorkbook } from '../../utils/sampleWorkbook';
 
 export interface ImportDestinationConfig {
   mode: 'new_project' | 'existing_project';
@@ -131,8 +131,8 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   };
 
   const handleLoadSample = () => {
-    const buffer = generateSampleAvmaisWorkbook();
-    handleFileBuffer(buffer.buffer as ArrayBuffer, 'AVMAIS_Implementation_2027_Sample.xlsx');
+    const buffer = generateSampleNovaWorkbook();
+    handleFileBuffer(buffer.buffer as ArrayBuffer, 'Nova_Platform_Modernization_2027_Sample.xlsx');
   };
 
   const handleSheetChange = (sheetName: string) => {
@@ -355,7 +355,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                     <div className="flex items-center gap-2">
                       <FileCheck className="w-4 h-4 text-[#d4af37]" />
                       <span className="font-bold text-sm text-white">
-                        Load Sample: AVMAIS Implementation 2027 Workbook
+                        Load Sample: Nova Platform Modernization 2027 Workbook
                       </span>
                     </div>
                     <p className="text-xs text-stone-400 leading-relaxed">
@@ -559,7 +559,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                               type="text"
                               value={newProjName}
                               onChange={(e) => setNewProjName(e.target.value)}
-                              placeholder="e.g. AVMAIS June 2027 Deliverables"
+                              placeholder="e.g. Nova Platform June 2027 Deliverables"
                               className="w-full px-3 py-1.5 rounded-lg border border-[#3b4054] bg-[#121318] text-xs text-white focus:outline-none focus:border-[#d4af37]"
                             />
                           </div>
@@ -895,7 +895,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
 
                     {/* Internal Owner */}
                     <tr className="hover:bg-[#20232e]">
-                      <td className="p-3 font-semibold text-white">AVMAIS / Internal Owner</td>
+                      <td className="p-3 font-semibold text-white">Internal Owner</td>
                       <td className="p-3 text-stone-400">Optional</td>
                       <td className="p-3">
                         <select
