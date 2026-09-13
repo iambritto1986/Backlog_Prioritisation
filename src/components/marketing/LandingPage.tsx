@@ -104,7 +104,7 @@ export const LandingPage: React.FC = () => {
           {/* Right: sign in, docked to the side */}
           <div className="w-full lg:sticky lg:top-16 flex flex-col items-center">
             {/* The Login Card */}
-            <div className="w-full max-w-[420px] bg-[#121318] border border-[#1f222c] rounded-3xl p-8 sm:p-10 shadow-2xl">
+            <div className="w-full max-w-[440px] bg-[#121318] border border-[#1f222c] rounded-3xl p-8 sm:p-10 shadow-2xl">
               
               {/* Custom Header matching the reference */}
               <div className="flex flex-col items-center text-center mb-8">

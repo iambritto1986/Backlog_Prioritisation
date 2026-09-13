@@ -79,6 +79,16 @@ code, kbd, samp, pre {
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.cl-rootBox {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
 /* Hide the "Secured by Clerk" badge since it overflows and doesn't match the custom design */
