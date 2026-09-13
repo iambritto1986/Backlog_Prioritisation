@@ -95,6 +95,16 @@ export interface Card {
     rawStatus?: string;
     importedAt?: string;
     isHistorical?: boolean;
+    businessValue?: string;
+    impact?: string;
+    urgency?: string;
+    effort?: string;
+    sessionDecision?: string;
+    milestoneOutcome?: string;
+    teamRationale?: string;
+    workstreamLead?: string;
+    workstreamRank?: number | string;
+    [key: string]: any;
   };
   createdAt: string;
   updatedAt: string;

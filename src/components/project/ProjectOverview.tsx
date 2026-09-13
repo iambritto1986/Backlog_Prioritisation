@@ -924,23 +924,23 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             </button>
           </div>
 
-          <div className="bg-[#121318] border border-[#1f222c] rounded-2xl overflow-hidden shadow-lg">
+          <div className="bg-[#121318] border border-[#1f222c] rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-stone-100 dark:bg-[#18191c] text-stone-600 dark:text-stone-400 font-semibold border-b border-stone-200 dark:border-[#2e303a]">
+                <thead className="bg-[#181920] text-stone-400 font-semibold border-b border-[#282c38]">
                   <tr>
-                    <th className="p-3 w-20">ID</th>
-                    <th className="p-3 min-w-[220px]">Deliverable & Activities</th>
-                    <th className="p-3">Workstream</th>
-                    <th className="p-3">Current Priority</th>
-                    <th className="p-3">Proposed Priority</th>
-                    <th className="p-3">Delivery Stage</th>
-                    <th className="p-3">Workshop Disposition</th>
-                    <th className="p-3">Owner</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 w-20 text-stone-300">ID</th>
+                    <th className="p-3 min-w-[220px] text-stone-300">Deliverable & Activities</th>
+                    <th className="p-3 text-stone-300">Workstream Track</th>
+                    <th className="p-3 text-stone-300">Current Priority</th>
+                    <th className="p-3 text-stone-300">Workshop Priority</th>
+                    <th className="p-3 text-stone-300">Delivery Stage</th>
+                    <th className="p-3 text-stone-300">Workshop Disposition</th>
+                    <th className="p-3 text-stone-300">Owner</th>
+                    <th className="p-3 text-right text-stone-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100 dark:divide-[#2e303a] text-stone-800 dark:text-stone-200">
+                <tbody className="divide-y divide-[#252836] text-stone-200">
                   {filteredCards.map((card) => {
                     const assessment = assessmentsMap[card.id];
                     const ws = project.workstreams.find((w) => w.id === card.workstreamId);
@@ -950,21 +950,23 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                       <tr
                         key={card.id}
                         onClick={() => setSelectedCardDetail(card)}
-                        className="hover:bg-stone-50 dark:hover:bg-[#252835] transition-colors cursor-pointer"
+                        className="hover:bg-[#1a1b24] transition-colors cursor-pointer group"
                       >
-                        <td className="p-3 font-mono font-bold text-stone-500">
+                        <td className="p-3 font-mono font-bold text-stone-400 group-hover:text-[#d4af37] transition-colors">
                           {card.id}
                         </td>
                         <td className="p-3">
-                          <div className="font-bold text-stone-900 dark:text-stone-100">
+                          <div className="font-bold text-white group-hover:text-[#fcd34d] transition-colors text-sm">
                             {card.title}
                           </div>
-                          <div className="text-[11px] text-stone-500 dark:text-stone-400 line-clamp-1 mt-0.5">
-                            {card.description}
-                          </div>
+                          {card.description && (
+                            <div className="text-[11px] text-stone-400 line-clamp-1 mt-0.5">
+                              {card.description}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-stone-100 dark:bg-[#282a35] text-stone-700 dark:text-stone-300 font-medium">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#181a22] text-stone-200 font-medium border border-[#282c38]">
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: ws?.color || '#d4af37' }}
@@ -976,10 +978,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                           {renderPriorityBadge(card.currentPriority)}
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          {renderProposedBadge(card, assessment) || <span className="text-stone-400">&mdash;</span>}
+                          {renderProposedBadge(card, assessment) || <span className="text-stone-500">&mdash;</span>}
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded text-xs bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300">
+                          <span className="px-2 py-0.5 rounded text-[11px] bg-[#181a22] text-stone-300 border border-[#282c38]">
                             {card.currentStage}
                           </span>
                         </td>
@@ -988,12 +990,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                         </td>
                         <td className="p-3 whitespace-nowrap">
                           {isTbdOwner ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                               <AlertCircle className="w-3 h-3" />
                               TBD
                             </span>
                           ) : (
-                            <span className="font-medium">{card.internalOwner}</span>
+                            <span className="font-medium text-stone-200">{card.internalOwner}</span>
                           )}
                         </td>
                         <td className="p-3 whitespace-nowrap text-right">
@@ -1003,7 +1005,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                               e.stopPropagation();
                               setCardToDelete(card);
                             }}
-                            className="p-1 rounded text-stone-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                             title="Delete card"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1015,7 +1017,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
                   {filteredCards.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-stone-400">
+                      <td colSpan={9} className="p-12 text-center text-xs text-stone-400">
                         No deliverables match the search criteria.
                       </td>
                     </tr>
@@ -1245,14 +1247,14 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: ADD DELIVERABLE */}
       {showAddCardModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] border border-[#282c38] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-[#e5e7eb]">
+            <h3 className="text-base font-bold text-white">
               Add New Deliverable Card
             </h3>
             <form onSubmit={handleCreateCardSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-semibold text-stone-300 mb-1">
                   Deliverable Title *
                 </label>
                 <input
@@ -1261,18 +1263,18 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   placeholder="e.g., Automated Webhook Dispatcher"
                   value={newCardTitle}
                   onChange={(e) => setNewCardTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-sm focus:outline-none focus:border-[#d4af37]"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-sm focus:outline-none focus:border-[#d4af37]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                  Workstream
+                <label className="block font-semibold text-stone-300 mb-1">
+                  Workstream Track
                 </label>
                 <select
                   value={newCardWs || project.workstreams[0]?.id}
                   onChange={(e) => setNewCardWs(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-xs"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-xs focus:outline-none focus:border-[#d4af37]"
                 >
                   {project.workstreams.map((w) => (
                     <option key={w.id} value={w.id}>
@@ -1283,7 +1285,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-semibold text-stone-300 mb-1">
                   Description & Key Initiatives
                 </label>
                 <textarea
@@ -1291,19 +1293,19 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   placeholder="Scope, technical requirements, or dependencies..."
                   value={newCardDesc}
                   onChange={(e) => setNewCardDesc(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-xs"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-xs focus:outline-none focus:border-[#d4af37]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-semibold text-stone-300 mb-1">
                     Initial Priority
                   </label>
                   <select
                     value={newCardPriority}
                     onChange={(e) => setNewCardPriority(e.target.value as Priority)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-xs focus:outline-none focus:border-[#d4af37]"
                   >
                     <option value="P0">P0 (Critical)</option>
                     <option value="P1">P1 (High)</option>
@@ -1313,7 +1315,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  <label className="block font-semibold text-stone-300 mb-1">
                     Internal Owner
                   </label>
                   <input
@@ -1321,22 +1323,22 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                     placeholder="e.g., Sarah Jenkins (or TBD)"
                     value={newCardOwner}
                     onChange={(e) => setNewCardOwner(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-xs focus:outline-none focus:border-[#d4af37]"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1f222c]">
                 <button
                   type="button"
                   onClick={() => setShowAddCardModal(false)}
-                  className="px-4 py-2 rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                  className="px-4 py-2 rounded-full text-stone-400 hover:text-white font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold shadow-md transition-colors"
+                  className="px-5 py-2 rounded-full bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold shadow-md transition-colors"
                 >
                   Create Deliverable
                 </button>
@@ -1348,20 +1350,20 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: CARD QUICK DETAIL */}
       {selectedCardDetail && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] border border-[#282c38] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-[#e5e7eb]">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-mono font-bold text-[#d4af37]">
                   {selectedCardDetail.id}
                 </span>
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                <h3 className="text-base font-bold text-white">
                   {selectedCardDetail.title}
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedCardDetail(null)}
-                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-1"
+                className="text-stone-400 hover:text-white p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1369,41 +1371,41 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
             <div className="text-xs space-y-3">
               <div>
-                <span className="font-semibold text-stone-500 block mb-1">Key Description & Activities</span>
-                <p className="text-stone-700 dark:text-stone-300 leading-relaxed bg-stone-50 dark:bg-[#18191c] p-3 rounded-lg border border-stone-200 dark:border-stone-800">
+                <span className="font-semibold text-stone-400 block mb-1">Key Description & Activities</span>
+                <p className="text-stone-200 leading-relaxed bg-[#181a22] p-3.5 rounded-xl border border-[#282c38]">
                   {selectedCardDetail.description || 'No detailed description provided.'}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <span className="font-semibold text-stone-500 block">Current Priority</span>
+                  <span className="font-semibold text-stone-400 block">Current Priority</span>
                   <div className="mt-1">{renderPriorityBadge(selectedCardDetail.currentPriority)}</div>
                 </div>
                 <div>
-                  <span className="font-semibold text-stone-500 block">Proposed Priority</span>
+                  <span className="font-semibold text-stone-400 block">Workshop Priority</span>
                   <div className="mt-1">
                     {renderProposedBadge(selectedCardDetail, assessmentsMap[selectedCardDetail.id]) || (
-                      <span className="text-stone-400">Pending Workshop</span>
+                      <span className="text-stone-500">Pending Workshop</span>
                     )}
                   </div>
                 </div>
                 <div>
-                  <span className="font-semibold text-stone-500 block">Internal Owner</span>
-                  <span className="font-medium text-stone-800 dark:text-stone-200">
+                  <span className="font-semibold text-stone-400 block">Internal Owner</span>
+                  <span className="font-medium text-white">
                     {selectedCardDetail.internalOwner || 'TBD (Gap)'}
                   </span>
                 </div>
                 <div>
-                  <span className="font-semibold text-stone-500 block">Delivery Stage</span>
-                  <span className="font-medium text-stone-800 dark:text-stone-200">
+                  <span className="font-semibold text-stone-400 block">Delivery Stage</span>
+                  <span className="font-medium text-white">
                     {selectedCardDetail.currentStage}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-[#1f222c] flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -1411,13 +1413,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   setSelectedCardDetail(null);
                   setCardToDelete(card);
                 }}
-                className="text-rose-500 hover:underline text-xs font-semibold flex items-center gap-1"
+                className="text-rose-400 hover:underline text-xs font-semibold flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5" /> Delete Deliverable
               </button>
               <button
                 onClick={() => setSelectedCardDetail(null)}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 transition-colors"
+                className="px-5 py-2 rounded-full text-xs font-bold bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 transition-colors shadow-xs"
               >
                 Close
               </button>
@@ -1428,12 +1430,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: ADD WORKSTREAM */}
       {showAddWsModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Add New Workstream</h3>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] border border-[#282c38] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-[#e5e7eb]">
+            <h3 className="text-lg font-bold text-white">Add New Workstream Track</h3>
             <form onSubmit={handleAddWs} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-semibold text-stone-300 mb-1">
                   Workstream Name *
                 </label>
                 <input
@@ -1442,12 +1444,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   placeholder="e.g., Clinical Decision Support"
                   value={wsName}
                   onChange={(e) => setWsName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-sm focus:outline-none focus:border-[#d4af37]"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-sm focus:outline-none focus:border-[#d4af37]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-semibold text-stone-300 mb-1">
                   Workstream Lead Name
                 </label>
                 <input
@@ -1455,12 +1457,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   placeholder="e.g., Britto Thomas"
                   value={wsLead}
                   onChange={(e) => setWsLead(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-sm focus:outline-none focus:border-[#d4af37]"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#282c38] bg-[#181a22] text-white text-sm focus:outline-none focus:border-[#d4af37]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                <label className="block font-semibold text-stone-300 mb-1">
                   Theme Color
                 </label>
                 <div className="flex items-center gap-3">
@@ -1468,23 +1470,23 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                     type="color"
                     value={wsColor}
                     onChange={(e) => setWsColor(e.target.value)}
-                    className="w-10 h-8 rounded border border-stone-300 dark:border-stone-700 cursor-pointer"
+                    className="w-10 h-8 rounded border border-[#282c38] bg-[#181a22] cursor-pointer"
                   />
-                  <span className="font-mono text-xs text-stone-500">{wsColor}</span>
+                  <span className="font-mono text-xs text-stone-400">{wsColor}</span>
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1f222c]">
                 <button
                   type="button"
                   onClick={() => setShowAddWsModal(false)}
-                  className="px-4 py-2 rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                  className="px-4 py-2 rounded-full text-stone-400 hover:text-white font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold shadow-md transition-colors"
+                  className="px-5 py-2 rounded-full bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold shadow-md transition-colors"
                 >
                   Save Workstream
                 </button>
@@ -1496,25 +1498,25 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: DELETE CARD CONFIRMATION */}
       {cardToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] rounded-2xl border border-stone-200 dark:border-stone-700 max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] rounded-2xl border border-[#282c38] max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-[#e5e7eb]">
             <div className="flex items-center gap-3 text-rose-500">
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
                 <Trash2 className="w-5 h-5 text-rose-500" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Delete Deliverable</h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">Card: {cardToDelete.id}</p>
+                <h3 className="text-base font-bold text-white">Delete Deliverable</h3>
+                <p className="text-xs text-stone-400">Card: {cardToDelete.id}</p>
               </div>
             </div>
-            <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-              Are you sure you want to delete <strong className="text-stone-900 dark:text-stone-100 font-semibold">"{cardToDelete.title}"</strong>?
+            <p className="text-sm text-stone-300 leading-relaxed">
+              Are you sure you want to delete <strong className="text-white font-semibold">"{cardToDelete.title}"</strong>?
             </p>
-            <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1f222c]">
               <button
                 type="button"
                 onClick={() => setCardToDelete(null)}
-                className="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                className="px-4 py-2 rounded-full text-sm text-stone-400 hover:text-white font-semibold"
               >
                 Cancel
               </button>
@@ -1530,7 +1532,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   }
                   setCardToDelete(null);
                 }}
-                className="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
+                className="px-5 py-2 rounded-full text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
@@ -1542,25 +1544,25 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: DELETE SESSION CONFIRMATION */}
       {sessionToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] rounded-2xl border border-stone-200 dark:border-stone-700 max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] rounded-2xl border border-[#282c38] max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-[#e5e7eb]">
             <div className="flex items-center gap-3 text-rose-500">
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
                 <Trash2 className="w-5 h-5 text-rose-500" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Delete Planning Session</h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">Irreversible Action</p>
+                <h3 className="text-base font-bold text-white">Delete Planning Session</h3>
+                <p className="text-xs text-stone-400">Irreversible Action</p>
               </div>
             </div>
-            <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-              Are you sure you want to delete session <strong className="text-stone-900 dark:text-stone-100 font-semibold">"{sessionToDelete.name}"</strong>?
+            <p className="text-sm text-stone-300 leading-relaxed">
+              Are you sure you want to delete session <strong className="text-white font-semibold">"{sessionToDelete.name}"</strong>?
             </p>
-            <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1f222c]">
               <button
                 type="button"
                 onClick={() => setSessionToDelete(null)}
-                className="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                className="px-4 py-2 rounded-full text-sm text-stone-400 hover:text-white font-semibold"
               >
                 Cancel
               </button>
@@ -1572,7 +1574,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   }
                   setSessionToDelete(null);
                 }}
-                className="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
+                className="px-5 py-2 rounded-full text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Session
@@ -1584,26 +1586,26 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
       {/* MODAL: DELETE PROJECT CONFIRMATION */}
       {showDeleteConfirm && project && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#20222a] rounded-2xl border border-stone-200 dark:border-stone-700 max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121318] rounded-2xl border border-[#282c38] max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-[#e5e7eb]">
             <div className="flex items-center gap-3 text-rose-500">
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-rose-500" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Delete Project</h3>
-                <p className="text-xs text-stone-500 dark:text-stone-400">Irreversible Action</p>
+                <h3 className="text-base font-bold text-white">Delete Project</h3>
+                <p className="text-xs text-stone-400">Irreversible Action</p>
               </div>
             </div>
-            <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-              Are you sure you want to delete <strong className="text-stone-900 dark:text-stone-100 font-semibold">"{project.name}"</strong>?
+            <p className="text-sm text-stone-300 leading-relaxed">
+              Are you sure you want to delete <strong className="text-white font-semibold">"{project.name}"</strong>?
               This will permanently remove the project, all workstreams, {cards.length} deliverable cards, and {sessions.length} planning session(s).
             </p>
-            <div className="pt-3 flex items-center justify-end gap-3 border-t border-stone-100 dark:border-stone-800">
+            <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#1f222c]">
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold"
+                className="px-4 py-2 rounded-full text-sm text-stone-400 hover:text-white font-semibold"
               >
                 Cancel
               </button>
@@ -1615,7 +1617,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   }
                   setShowDeleteConfirm(false);
                 }}
-                className="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
+                className="px-5 py-2 rounded-full text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md transition-colors flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Project

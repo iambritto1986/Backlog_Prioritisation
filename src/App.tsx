@@ -51,6 +51,7 @@ export default function App() {
 
   // Initialize data from Persistence & Auth Services
   useEffect(() => {
+    document.documentElement.classList.add('dark');
     initApp();
   }, []);
 
@@ -301,49 +302,140 @@ export default function App() {
     showToast(`Updated workstream "${workstream.name}".`);
   };
 
-  // Import completed (with Automatic Workstream Formulation)
+  // Import completed (with Automatic Workstream Formulation & Assessment Sync)
   const handleImportComplete = async (importedCards: Card[], appendMode: boolean) => {
     const currentProj = projects.find((p) => p.id === selectedProjectId);
-    const PALETTE = ['#dc2626', '#d97706', '#2563eb', '#059669', '#7c3aed', '#0284c7', '#e11d48', '#4f46e5'];
+    const PALETTE = [
+      '#d4af37', // Gold
+      '#3b82f6', // Blue
+      '#10b981', // Emerald
+      '#f59e0b', // Amber
+      '#8b5cf6', // Purple
+      '#ef4444', // Red
+      '#06b6d4', // Cyan
+      '#ec4899', // Pink
+      '#6366f1', // Indigo
+      '#14b8a6', // Teal
+    ];
 
     if (currentProj) {
-      const existingWsNames = new Set(currentProj.workstreams.map((w) => w.name.toLowerCase().trim()));
-      const newWorkstreams: Workstream[] = [];
+      const existingWsMap = new Map<string, Workstream>(
+        currentProj.workstreams.map((w) => [w.name.toLowerCase().trim(), w])
+      );
+      const updatedWorkstreams: Workstream[] = [...currentProj.workstreams];
 
+      // Extract unique workstreams and their leads from imported data
       importedCards.forEach((card) => {
         const wsName = (card.workstreamName || 'General').trim();
-        if (wsName && !existingWsNames.has(wsName.toLowerCase())) {
-          existingWsNames.add(wsName.toLowerCase());
-          const wsId = `ws-${wsName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
-          const color = PALETTE[(currentProj.workstreams.length + newWorkstreams.length) % PALETTE.length];
-          newWorkstreams.push({
+        if (!wsName) return;
+        const norm = wsName.toLowerCase();
+
+        const leadName =
+          (card.sourceMeta as any)?.workstreamLead ||
+          card.customFields?.workstreamLead ||
+          card.internalOwner ||
+          currentUser.name ||
+          'Lead';
+
+        if (!existingWsMap.has(norm)) {
+          const wsId = `ws-${wsName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now() + Math.random().toString(36).substring(2, 5)}`;
+          const color = PALETTE[updatedWorkstreams.length % PALETTE.length];
+          const newWs: Workstream = {
             id: wsId,
             projectId: currentProj.id,
             name: wsName,
-            leadName: card.internalOwner || 'TBD Lead',
+            leadName,
             color,
-            displayOrder: currentProj.workstreams.length + newWorkstreams.length + 1,
-          });
+            displayOrder: updatedWorkstreams.length + 1,
+          };
+          updatedWorkstreams.push(newWs);
+          existingWsMap.set(norm, newWs);
+        } else {
+          // If existing workstream had a generic lead but imported data has a specific lead, update it
+          const existingWs = existingWsMap.get(norm)!;
+          if (leadName && leadName !== 'TBD' && (!existingWs.leadName || existingWs.leadName === 'TBD Lead')) {
+            existingWs.leadName = leadName;
+          }
         }
       });
 
-      if (newWorkstreams.length > 0) {
-        const updatedProj: Project = {
-          ...currentProj,
-          workstreams: [...currentProj.workstreams, ...newWorkstreams],
-          updatedAt: new Date().toISOString(),
-        };
-        await persistenceService.saveProject(updatedProj);
-        const allProj = await persistenceService.getProjects();
-        setProjects(allProj);
+      // Update card workstreamIds to match formulated workstream IDs
+      importedCards.forEach((card) => {
+        const wsName = (card.workstreamName || 'General').trim().toLowerCase();
+        const matchedWs = existingWsMap.get(wsName);
+        if (matchedWs) {
+          card.workstreamId = matchedWs.id;
+          card.workstreamName = matchedWs.name;
+        }
+      });
+
+      // Save updated project workstreams
+      const updatedProj: Project = {
+        ...currentProj,
+        workstreams: updatedWorkstreams,
+        updatedAt: new Date().toISOString(),
+      };
+      await persistenceService.saveProject(updatedProj);
+      const allProj = await persistenceService.getProjects();
+      setProjects(allProj);
+    }
+
+    // Save cards to persistence
+    await persistenceService.saveCards(importedCards);
+
+    // Sync imported assessment values into sessions if available
+    const projSessions = sessions.filter((s) => s.projectId === selectedProjectId);
+    if (projSessions.length > 0) {
+      for (const sess of projSessions) {
+        for (const card of importedCards) {
+          const meta = card.sourceMeta || {};
+          const custom = card.customFields || {};
+
+          const businessValue = (meta.businessValue || custom.businessValue || 'Unknown') as any;
+          const impact = (meta.impact || custom.impact || 'Unknown') as any;
+          const urgency = (meta.urgency || custom.urgency || 'Unknown') as any;
+          const effort = (meta.effort || custom.effort || 'Unknown') as any;
+          const decision = (meta.sessionDecision || custom.sessionDecision || 'Not Discussed') as any;
+          const outcome = (meta.milestoneOutcome || custom.milestoneOutcome || card.targetDateOrQuarter || '') as string;
+          const rationale = (meta.teamRationale || custom.teamRationale || '') as string;
+          const rankRaw = meta.workstreamRank || custom.workstreamRank;
+          const rank = rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null;
+
+          if (
+            businessValue !== 'Unknown' ||
+            impact !== 'Unknown' ||
+            urgency !== 'Unknown' ||
+            effort !== 'Unknown' ||
+            decision !== 'Not Discussed' ||
+            outcome ||
+            rationale
+          ) {
+            await persistenceService.saveAssessment({
+              sessionId: sess.id,
+              cardId: card.id,
+              proposedPriority: card.currentPriority,
+              businessValue,
+              memberImpact: impact,
+              urgency,
+              effort,
+              workstreamRank: rank,
+              decision,
+              milestoneOutcome: outcome,
+              teamRationale: rationale,
+              validationNeeds: '',
+              lastEditedBy: 'Import Synchronization',
+              lastEditedAt: new Date().toISOString(),
+              version: 1,
+            });
+          }
+        }
       }
     }
 
-    await persistenceService.saveCards(importedCards);
     const refreshed = await persistenceService.getCards(selectedProjectId);
     setCards(refreshed);
     setActiveView('project_overview');
-    showToast(`Imported ${importedCards.length} deliverable cards!`);
+    showToast(`Successfully imported ${importedCards.length} deliverable cards with workstreams!`);
   };
 
   // Active object references
