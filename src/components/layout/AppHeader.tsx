@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
 import { authService } from '../../services/AuthService';
+import { BananaLogo } from '../common/BananaLogo';
 
 export interface AppHeaderProps {
   currentUser: User;
@@ -140,13 +141,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             onClick={() => handleNav('home')}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] font-bold text-sm shadow-sm group-hover:border-[#d4af37] transition-all">
-              AC
+            <div className="w-10 h-10 rounded-2xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center shadow-md group-hover:border-[#d4af37] group-hover:shadow-[0_0_15px_rgba(212,175,55,0.25)] transition-all">
+              <BananaLogo className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-tight text-[#e5e7eb] group-hover:text-[#fcd34d] transition-colors">
-                  AlignCraft Workspace
+                <span className="font-extrabold text-base tracking-tight text-white group-hover:text-[#fcd34d] transition-colors">
+                  Banana OS
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#d4af37]/15 text-[#fcd34d] border border-[#d4af37]/30">
+                  STUDIO
                 </span>
               </div>
               <div className="text-[11px] text-stone-400 font-medium">

@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Project, PlanningSession, Workspace, User } from '../../types';
+import { BananaLogo } from '../common/BananaLogo';
 
 interface WorkspaceHomeProps {
   workspace: Workspace;
@@ -99,11 +100,11 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
         {/* Card 1: Total Backlog Items */}
         <div className="bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 rounded-2xl p-5 shadow-lg transition-all flex items-center justify-between group">
           <div className="flex items-center gap-4">
-            <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-[#d4af37]/25 flex items-center justify-center text-[#d4af37] group-hover:border-[#d4af37] transition-all shadow-inner">
-              <FileSpreadsheet className="w-6 h-6" />
+            <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-[#d4af37]/25 flex items-center justify-center group-hover:border-[#d4af37] transition-all shadow-inner">
+              <BananaLogo className="w-7 h-7" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-stone-400">Total Backlog Items</div>
+              <div className="text-xs font-semibold text-stone-400">Banana OS &bull; Backlog Items</div>
               <div className="text-2xl font-black tracking-tight text-white mt-0.5">
                 {totalWorkstreams > 0 ? `${projects.length * 7 + 4}` : '14'}
               </div>
