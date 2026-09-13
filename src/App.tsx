@@ -26,7 +26,7 @@ import { AlertTriangle } from 'lucide-react';
 
 import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
 import { KnockToJoinModal } from './components/session/KnockToJoinModal';
-import { SignInScreen } from './components/auth/SignInScreen';
+import { LandingPage } from './components/marketing/LandingPage';
 
 export type ActiveView =
   | 'home'
@@ -761,7 +761,7 @@ export default function App() {
       );
     }
     if (!isSignedIn) {
-      return <SignInScreen />;
+      return <LandingPage />;
     }
   }
 
