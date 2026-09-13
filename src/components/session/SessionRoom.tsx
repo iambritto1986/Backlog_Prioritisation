@@ -55,7 +55,6 @@ import {
   Share2,
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
-import { InviteModal } from '../invite/InviteModal';
 import { ShareSessionModal } from './ShareSessionModal';
 import { LiveVotingModal } from './LiveVotingModal';
 import { StartVotingLauncherModal } from './StartVotingLauncherModal';
@@ -100,7 +99,11 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   const [followingFacilitator, setFollowingFacilitator] = useState<boolean>(
     currentUser.role !== 'facilitator'
   );
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  // Controls the ShareSessionModal (link-based join flow). The old
+  // email/role invite-code system (InviteModal) was retired — it was never
+  // actually rendered anywhere in this file, so this flag always meant "the
+  // share modal," just under a stale name from before that cleanup.
+  const [showShareModal, setShowShareModal] = useState(false);
   const [filterDisposition, setFilterDisposition] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeRightTab, setActiveRightTab] = useState<'working' | 'details' | 'comments' | 'history'>('working');
@@ -871,7 +874,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
           {/* Share Session & Workspace Modal */}
           <button
-            onClick={() => setShowInviteModal(true)}
+            onClick={() => setShowShareModal(true)}
             className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#fcd34d] border border-[#d4af37]/50 transition-colors shadow-xs"
           >
             <Share2 className="w-3.5 h-3.5 text-[#d4af37]" />
@@ -1859,7 +1862,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
       </div>
 
       {/* Share Session & Workspace Modal */}
-      {showInviteModal && (
+      {showShareModal && (
         <ShareSessionModal
           project={project}
           session={session}
@@ -1867,7 +1870,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
           cards={cards}
           currentUser={currentUser}
           deliverablesCount={cards.length}
-          onClose={() => setShowInviteModal(false)}
+          onClose={() => setShowShareModal(false)}
         />
       )}
 
