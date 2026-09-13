@@ -129,6 +129,12 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   const [newCardOwner, setNewCardOwner] = useState('');
   const [newCardEta, setNewCardEta] = useState('Q2 2027');
 
+  // Quick Inline Add State
+  const [inlineTitle, setInlineTitle] = useState('');
+  const [inlineWs, setInlineWs] = useState('');
+  const [inlinePriority, setInlinePriority] = useState<Priority>('P1');
+  const [inlineOwner, setInlineOwner] = useState('');
+
   // Sync if initial props change
   useEffect(() => {
     if (initialProject) setProject(initialProject);
@@ -263,6 +269,44 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
     setNewCardTitle('');
     setNewCardDesc('');
     setShowAddCardModal(false);
+  };
+
+  const handleQuickAddRequirement = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!inlineTitle.trim() || !project) return;
+    const targetWsId =
+      inlineWs || (selectedWsFilter !== 'all' ? selectedWsFilter : project.workstreams[0]?.id);
+    const ws = project.workstreams.find((w) => w.id === targetWsId) || project.workstreams[0];
+    const wsPrefix = (ws?.name || 'REQ').replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+    const newId = `${wsPrefix}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const cardObj: Card = {
+      id: newId,
+      projectId: project.id,
+      workstreamId: ws?.id || 'ws-core',
+      workstreamName: ws?.name || 'Core',
+      title: inlineTitle.trim(),
+      description: '',
+      currentPriority: inlinePriority,
+      currentStage: 'Requirements',
+      internalOwner: inlineOwner.trim() || currentUser.name || 'TBD',
+      deliveryPartnerOwner: 'TBD',
+      targetDateOrQuarter: project.targetHorizon,
+      dependencies: '',
+      customFields: {},
+      sourceMeta: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (onAddCard) {
+      onAddCard(cardObj);
+    } else {
+      persistenceService.saveCard(cardObj).then(() => {
+        setCards((prev) => [...prev, cardObj]);
+      });
+    }
+    setInlineTitle('');
   };
 
   const renderPriorityBadge = (priority: Priority) => {
@@ -538,47 +582,105 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
         </div>
       </div>
 
-      {/* Segmented Tab Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 dark:border-stone-800 pb-3">
-        <div className="flex items-center gap-1 bg-stone-100 dark:bg-[#20222a] p-1 rounded-xl border border-stone-200 dark:border-stone-800 self-start">
+      {/* 1. Workstream Track Filter Strip */}
+      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-[#121318] border border-[#1f222c]">
           <button
-            onClick={() => setActiveTab('board')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'board'
-                ? 'bg-white dark:bg-[#2d303b] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+            onClick={() => setSelectedWsFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              selectedWsFilter === 'all'
+                ? 'bg-[#d4af37] text-neutral-950 font-bold shadow-xs'
+                : 'text-stone-400 hover:text-white'
             }`}
           >
-            <Kanban className="w-3.5 h-3.5 text-[#d4af37]" />
-            Planning Board
+            All Tracks ({cards.length})
           </button>
+          {project.workstreams.map((ws) => {
+            const wsCount = cards.filter((c) => c.workstreamId === ws.id).length;
+            const isSelected = selectedWsFilter === ws.id;
+            return (
+              <button
+                key={ws.id}
+                onClick={() => setSelectedWsFilter(ws.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  isSelected
+                    ? 'bg-[#1e202c] text-white border border-[#d4af37]/60 shadow-xs'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: ws.color || '#d4af37' }}
+                />
+                <span>{ws.name}</span>
+                <span className="text-[10px] text-stone-500 font-mono">({wsCount})</span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowAddWsModal(true)}
+            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors flex items-center gap-1"
+            title="Define new workstream track"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Track</span>
+          </button>
+        </div>
 
+        {/* Search */}
+        <div className="relative shrink-0">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+          <input
+            type="text"
+            placeholder="Filter requirements..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 pr-3 py-1.5 rounded-full bg-[#121318] border border-[#1f222c] focus:border-[#d4af37] text-stone-200 text-xs focus:outline-none w-44 sm:w-56 transition-all"
+          />
+        </div>
+      </div>
+
+      {/* 2. Segmented Sub-View Navigation */}
+      <div className="flex items-center justify-between gap-4 border-b border-[#1f222c] pb-3">
+        <div className="flex items-center gap-1 bg-[#121318] p-1 rounded-xl border border-[#1f222c]">
           <button
             onClick={() => setActiveTab('backlog')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'backlog'
-                ? 'bg-white dark:bg-[#2d303b] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-xs'
+                : 'text-stone-400 hover:text-white'
             }`}
           >
-            <Tag className="w-3.5 h-3.5 text-stone-400" />
-            Deliverables Backlog
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-              {cards.length}
+            <Tag className="w-3.5 h-3.5" />
+            <span>Requirements Backlog</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/20">
+              {filteredCards.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('board')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'board'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-xs'
+                : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            <Kanban className="w-3.5 h-3.5" />
+            <span>Visual Board</span>
           </button>
 
           <button
             onClick={() => setActiveTab('sessions')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'sessions'
-                ? 'bg-white dark:bg-[#2d303b] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-xs'
+                : 'text-stone-400 hover:text-white'
             }`}
           >
-            <Radio className="w-3.5 h-3.5 text-stone-400" />
-            Planning Sessions
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+            <Radio className="w-3.5 h-3.5 text-[#fcd34d]" />
+            <span>Facilitation Studio</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/20">
               {sessions.length}
             </span>
           </button>
@@ -587,40 +689,13 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             onClick={() => setActiveTab('workstreams')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'workstreams'
-                ? 'bg-white dark:bg-[#2d303b] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-xs'
+                : 'text-stone-400 hover:text-white'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-stone-400" />
-            Workstreams
+            <Layers className="w-3.5 h-3.5" />
+            <span>Workstream Tracks</span>
           </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-2.5 text-xs">
-          <select
-            value={selectedWsFilter}
-            onChange={(e) => setSelectedWsFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#20222a] text-stone-800 dark:text-stone-200 text-xs focus:outline-none focus:border-[#d4af37]"
-          >
-            <option value="all">All Workstreams</option>
-            {project.workstreams.map((ws) => (
-              <option key={ws.id} value={ws.id}>
-                {ws.name}
-              </option>
-            ))}
-          </select>
-
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Search deliverables..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#20222a] text-stone-800 dark:text-stone-200 text-xs focus:outline-none focus:border-[#d4af37] w-48 sm:w-56"
-            />
-          </div>
         </div>
       </div>
 
@@ -793,20 +868,63 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
       {/* TAB 2: DELIVERABLES BACKLOG */}
       {activeTab === 'backlog' && (
         <div className="space-y-4">
+          {/* Quick Inline Requirement Creator */}
+          <form
+            onSubmit={handleQuickAddRequirement}
+            className="bg-[#121318] border border-[#1f222c] rounded-2xl p-3 sm:p-4 flex flex-wrap items-center gap-3 shadow-md"
+          >
+            <input
+              type="text"
+              placeholder="Quick Add: Type user requirement, feature, or activity..."
+              value={inlineTitle}
+              onChange={(e) => setInlineTitle(e.target.value)}
+              className="flex-1 min-w-[220px] px-3.5 py-2 rounded-xl bg-[#181a22] border border-[#282c38] text-xs text-white placeholder-stone-500 focus:outline-none focus:border-[#d4af37]"
+            />
+            <select
+              value={inlineWs || (selectedWsFilter !== 'all' ? selectedWsFilter : project.workstreams[0]?.id)}
+              onChange={(e) => setInlineWs(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-[#181a22] border border-[#282c38] text-xs text-stone-200 focus:outline-none focus:border-[#d4af37]"
+            >
+              {project.workstreams.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={inlinePriority}
+              onChange={(e) => setInlinePriority(e.target.value as Priority)}
+              className="px-3 py-2 rounded-xl bg-[#181a22] border border-[#282c38] text-xs text-stone-200 focus:outline-none focus:border-[#d4af37]"
+            >
+              <option value="P0">P0 Critical</option>
+              <option value="P1">P1 High</option>
+              <option value="P2">P2 Medium</option>
+              <option value="P3">P3 Low</option>
+            </select>
+            <button
+              type="submit"
+              disabled={!inlineTitle.trim()}
+              className="px-4 py-2 rounded-xl bg-[#d4af37] disabled:opacity-40 hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(212,175,55,0.25)]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Requirement</span>
+            </button>
+          </form>
+
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
-              Project Backlog Items ({filteredCards.length})
+            <h2 className="text-sm font-bold text-stone-200">
+              Requirements Backlog ({filteredCards.length})
             </h2>
             <button
               onClick={() => setShowAddCardModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
+              className="text-xs font-bold text-[#fcd34d] hover:underline flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              Add Deliverable
+              <span>Full Details Modal</span>
             </button>
           </div>
 
-          <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-[#2e303a] rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-[#121318] border border-[#1f222c] rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-stone-100 dark:bg-[#18191c] text-stone-600 dark:text-stone-400 font-semibold border-b border-stone-200 dark:border-[#2e303a]">

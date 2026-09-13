@@ -95,37 +95,37 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-7 text-[#e5e7eb]">
-      {/* 1. TOP 3 KPI SUMMARY CARDS (ClaimCoda Luxury Obsidian Style) */}
+      {/* 1. TOP 3 KPI SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Card 1: Total Backlog Items */}
+        {/* Card 1: Active Projects */}
         <div className="bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 rounded-2xl p-5 shadow-lg transition-all flex items-center justify-between group">
           <div className="flex items-center gap-4">
             <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-[#d4af37]/25 flex items-center justify-center group-hover:border-[#d4af37] transition-all shadow-inner">
               <BananaLogo className="w-7 h-7" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-stone-400">Banana OS &bull; Backlog Items</div>
+              <div className="text-xs font-semibold text-stone-400">Active Projects</div>
               <div className="text-2xl font-black tracking-tight text-white mt-0.5">
-                {totalWorkstreams > 0 ? `${projects.length * 7 + 4}` : '14'}
+                {projects.length}
               </div>
-              <div className="text-[11px] text-stone-500 font-medium">Across all workstream tracks</div>
+              <div className="text-[11px] text-stone-500 font-medium">Strategic initiatives & platforms</div>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Active Workshops */}
+        {/* Card 2: Workshop Sessions */}
         <div className="bg-[#121318] border border-[#1f222c] hover:border-amber-500/40 rounded-2xl p-5 shadow-lg transition-all flex items-center justify-between group">
           <div className="flex items-center gap-4">
             <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-amber-500/25 flex items-center justify-center text-amber-400 group-hover:border-amber-400 transition-all shadow-inner">
-              <Clock className="w-6 h-6" />
+              <Radio className="w-6 h-6 text-[#d4af37] animate-pulse" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-stone-400">Active In Progress</div>
+              <div className="text-xs font-semibold text-stone-400">Workshop Rooms</div>
               <div className="text-2xl font-black tracking-tight text-white mt-0.5">
-                {sessions.length > 0 ? sessions.length : '1'}
+                {sessions.length}
               </div>
               <div className="text-[11px] text-stone-500 font-medium">
-                {liveSessions.length > 0 ? `${liveSessions.length} live working room` : 'Live room & agenda'}
+                {liveSessions.length > 0 ? `${liveSessions.length} live working session` : 'Facilitated workshop rooms'}
               </div>
             </div>
           </div>
@@ -135,20 +135,20 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
         <div className="bg-[#121318] border border-[#1f222c] hover:border-emerald-500/40 rounded-2xl p-5 shadow-lg transition-all flex items-center justify-between group">
           <div className="flex items-center gap-4">
             <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-emerald-500/25 flex items-center justify-center text-emerald-400 group-hover:border-emerald-400 transition-all shadow-inner">
-              <TrendingUp className="w-6 h-6" />
+              <Sparkles className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-stone-400">Alignment & Consensus</div>
+              <div className="text-xs font-semibold text-stone-400">Delphi Sizing Consensus</div>
               <div className="text-2xl font-black tracking-tight text-emerald-400 mt-0.5">
                 92%
               </div>
-              <div className="text-[11px] text-stone-500 font-medium">Delphi sizing convergence</div>
+              <div className="text-[11px] text-stone-500 font-medium">Multi-party estimation agreement</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. FILTER STRIP & ACTIONS (ClaimCoda Segmented Navigation) */}
+      {/* 2. FILTER STRIP & ACTIONS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
         {/* Left: Filter Pills */}
         <div className="flex items-center gap-2 p-1 rounded-full bg-[#121318] border border-[#1f222c] self-start">
@@ -170,17 +170,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
                 : 'text-stone-400 hover:text-white'
             }`}
           >
-            Workshops ({sessions.length})
-          </button>
-          <button
-            onClick={() => setActiveFilterTab('deliverables')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-              activeFilterTab === 'deliverables'
-                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
-                : 'text-stone-400 hover:text-white'
-            }`}
-          >
-            Workstreams ({totalWorkstreams})
+            Workshop Rooms ({sessions.length})
           </button>
         </div>
 
@@ -413,29 +403,6 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
               </div>
             )}
           </>
-        )}
-
-        {activeFilterTab === 'deliverables' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.flatMap((p) => p.workstreams.map((w) => ({ ...w, projectName: p.name, projId: p.id }))).map((ws) => (
-              <div
-                key={ws.id}
-                onClick={() => onSelectProject(ws.projId)}
-                className="bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 rounded-2xl p-4 cursor-pointer transition-all hover:bg-[#15171e]"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
-                    style={{ backgroundColor: ws.color || '#d4af37' }}
-                  />
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-sm text-white truncate">{ws.name}</h4>
-                    <p className="text-[11px] text-stone-400 truncate">Lead: {ws.leadName} &bull; {ws.projectName}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </div>
 
