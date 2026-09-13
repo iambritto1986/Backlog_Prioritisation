@@ -33,13 +33,19 @@ export interface Workspace {
   createdAt: string;
 }
 
+// The 5 canonical delivery stages, in pipeline order. These are the only
+// values ever actually produced by seed data, the Excel importer, and the
+// sample workbook (see excelImport.ts / sampleWorkbook.ts / seedData.ts) —
+// this type previously also listed 'Development & Integration' and
+// 'Testing & Validation' as longer-named alternates to 'Development' and
+// 'Testing', but nothing ever created a card with those longer values, so
+// any board column keyed on them silently showed 0 cards. Consolidated to
+// one set, used consistently everywhere a stage list is rendered.
 export type DeliveryStage =
   | 'Requirements'
   | 'Architecture & Design'
   | 'Development'
-  | 'Development & Integration'
   | 'Testing'
-  | 'Testing & Validation'
   | 'Delivered';
 
 export type Priority = 'P0' | 'P1' | 'P2' | 'P3' | 'Unprioritized';

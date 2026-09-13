@@ -15,19 +15,14 @@ import {
   User,
 } from '../../types';
 import {
-  Kanban,
-  Filter,
   Search,
   ArrowLeft,
   ArrowRight,
   Plus,
   Edit2,
   Calendar,
-  Layers,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  Award,
   AlertTriangle,
   AlertCircle,
   Clock,
@@ -37,10 +32,7 @@ import {
   X,
   MessageSquare,
   Send,
-  Grid,
-  TrendingUp,
   Flame,
-  LayoutGrid,
   Trash2,
 } from 'lucide-react';
 import { persistenceService } from '../../services/PersistenceService';
@@ -55,14 +47,6 @@ interface ProjectBoardProps {
   onDeleteCard?: (cardId: string) => void;
   onAddCard?: (newCard: Card) => void;
 }
-
-const STAGES: DeliveryStage[] = [
-  'Requirements',
-  'Architecture & Design',
-  'Development & Integration',
-  'Testing & Validation',
-  'Delivered',
-];
 
 const PRIORITIES: Priority[] = ['P0', 'P1', 'P2', 'P3', 'Unprioritized'];
 const DISPOSITIONS: WorkshopDisposition[] = [
@@ -84,9 +68,6 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
   onDeleteCard,
   onAddCard,
 }) => {
-  const [boardMode, setBoardMode] = useState<
-    'priority' | 'disposition' | 'matrix' | 'stage' | 'workstream'
-  >('priority');
   const [selectedWsId, setSelectedWsId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCardForDrawer, setSelectedCardForDrawer] = useState<Card | null>(null);
@@ -313,16 +294,11 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
-            {card.storyPoints !== undefined && card.storyPoints > 0 && (
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                {card.storyPoints} pts
-              </span>
-            )}
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-stone-100 dark:bg-[#18191c] text-stone-700 dark:text-stone-300">
-              {card.currentPriority}
+          {card.storyPoints !== undefined && card.storyPoints > 0 && (
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
+              {card.storyPoints} pts
             </span>
-          </div>
+          )}
         </div>
 
         <h4 className="font-bold text-xs text-stone-900 dark:text-stone-100 line-clamp-2 leading-snug">
@@ -398,14 +374,15 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <div className="text-xs uppercase font-bold tracking-widest text-[#d4af37]">
-              {project.name} &bull; Working Board
+            <div className="text-xs uppercase font-bold tracking-widest text-[#d4af37] flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5" />
+              {project.name} &bull; Priority Board
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
-              Interactive Prioritization & Backlog Board
+              What are we actually shipping first?
             </h1>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Live collaboration studio. Click any deliverable to record assessments, story points, discussion notes, and action items.
+              Click any deliverable to record assessments, story points, discussion notes, and action items — updates sync live to everyone in the workshop.
             </p>
           </div>
         </div>
@@ -446,369 +423,65 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
         </div>
       </div>
 
-      {/* Board Mode Switcher Bar */}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 text-xs">
-        <div className="flex items-center gap-1 bg-stone-100 dark:bg-[#20222a] p-1 rounded-xl border border-stone-200 dark:border-stone-800">
-          <button
-            onClick={() => setBoardMode('priority')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              boardMode === 'priority'
-                ? 'bg-white dark:bg-[#2a2c38] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-            }`}
-          >
-            <Flame className="w-3.5 h-3.5 text-[#d4af37]" />
-            <span>Priority (P0–P3)</span>
-          </button>
-
-          <button
-            onClick={() => setBoardMode('disposition')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              boardMode === 'disposition'
-                ? 'bg-white dark:bg-[#2a2c38] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Workshop Disposition</span>
-          </button>
-
-          <button
-            onClick={() => setBoardMode('matrix')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              boardMode === 'matrix'
-                ? 'bg-white dark:bg-[#2a2c38] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-            }`}
-          >
-            <Grid className="w-3.5 h-3.5 text-amber-500" />
-            <span>Value vs Effort Matrix</span>
-          </button>
-
-          <button
-            onClick={() => setBoardMode('workstream')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              boardMode === 'workstream'
-                ? 'bg-white dark:bg-[#2a2c38] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5 text-blue-500" />
-            <span>Workstream Tracks</span>
-          </button>
-
-          <button
-            onClick={() => setBoardMode('stage')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              boardMode === 'stage'
-                ? 'bg-white dark:bg-[#2a2c38] text-stone-900 dark:text-white shadow-xs border border-stone-200 dark:border-stone-700'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
-            }`}
-          >
-            <Kanban className="w-3.5 h-3.5 text-purple-500" />
-            <span>Delivery Stages</span>
-          </button>
-        </div>
-
-        <span className="text-[11px] text-stone-400 hidden lg:inline">
-          Showing {filteredCards.length} of {cards.length} deliverables
-        </span>
+      <div className="text-[11px] text-stone-400 -mt-2">
+        Showing {filteredCards.length} of {cards.length} deliverables
       </div>
 
-      {/* MODE 1: PRIORITY BOARD */}
-      {boardMode === 'priority' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {(['P0', 'P1', 'P2', 'P3'] as Priority[]).map((p) => {
-            const colCards = filteredCards.filter((c) => c.currentPriority === p);
-            const borderColors = {
-              P0: 'border-t-rose-500',
-              P1: 'border-t-amber-500',
-              P2: 'border-t-blue-500',
-              P3: 'border-t-stone-500',
-              Unprioritized: 'border-t-stone-600',
-            };
+      {/* PRIORITY BOARD — the one working view. Columns for P0–P3 always
+          show; an "Unprioritized" column only appears when imported/legacy
+          data actually has cards sitting in it, so the common case stays a
+          clean 4-column board. (Previously this screen had 5 switchable
+          board "modes" — Priority, Disposition, Value/Effort Matrix,
+          Workstream Tracks, Delivery Stages — which is what made it feel
+          overwhelming. Per the v1 scope doc, we're consolidating down to
+          this single view; the other lenses may come back later as
+          filters/sort on top of this board rather than separate full
+          re-layouts.) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {(
+          [
+            { p: 'P0' as Priority, label: 'Must ship', accent: 'border-t-rose-500', pill: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
+            { p: 'P1' as Priority, label: 'High priority', accent: 'border-t-amber-500', pill: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+            { p: 'P2' as Priority, label: 'Planned', accent: 'border-t-blue-500', pill: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+            { p: 'P3' as Priority, label: 'Nice to have', accent: 'border-t-stone-500', pill: 'bg-stone-500/10 text-stone-500 dark:text-stone-400' },
+            ...(filteredCards.some((c) => c.currentPriority === 'Unprioritized')
+              ? [{ p: 'Unprioritized' as Priority, label: 'Not yet sized', accent: 'border-t-stone-600', pill: 'bg-stone-500/10 text-stone-500 dark:text-stone-400' }]
+              : []),
+          ]
+        ).map(({ p, label, accent, pill }) => {
+          const colCards = filteredCards.filter((c) => c.currentPriority === p);
 
-            return (
-              <div
-                key={p}
-                className={`bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] border-t-4 ${borderColors[p]} rounded-2xl p-4 flex flex-col min-h-[480px] space-y-3`}
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">
-                      Priority {p}
-                    </span>
+          return (
+            <div
+              key={p}
+              className={`bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] border-t-4 ${accent} rounded-2xl p-4 flex flex-col min-h-[480px] space-y-3`}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
+                <div>
+                  <div className={`inline-flex items-center px-1.5 py-0.5 rounded font-mono font-bold text-[11px] ${pill}`}>
+                    {p}
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300">
-                    {colCards.length}
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {colCards.map(renderCardItem)}
-                  {colCards.length === 0 && (
-                    <div className="h-40 flex items-center justify-center text-xs text-stone-400 italic">
-                      No deliverables in {p}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* MODE 2: DISPOSITION BOARD */}
-      {boardMode === 'disposition' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {(['Selected', 'Reserve', 'Needs Validation', 'Not Discussed'] as const).map((disp) => {
-            const colCards = filteredCards.filter((c) => {
-              const a = assessmentsMap[c.id];
-              const d = a?.decision || 'Not Discussed';
-              return d === disp;
-            });
-
-            const topBorders = {
-              Selected: 'border-t-emerald-500',
-              Reserve: 'border-t-[#d4af37]',
-              'Needs Validation': 'border-t-orange-500',
-              'Not Discussed': 'border-t-stone-500',
-            };
-
-            return (
-              <div
-                key={disp}
-                className={`bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] border-t-4 ${topBorders[disp]} rounded-2xl p-4 flex flex-col min-h-[480px] space-y-3`}
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-                  <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider truncate">
-                    {disp}
-                  </h3>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300">
-                    {colCards.length}
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {colCards.map(renderCardItem)}
-                  {colCards.length === 0 && (
-                    <div className="h-40 flex items-center justify-center text-xs text-stone-400 italic">
-                      No cards in {disp}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* MODE 3: VALUE VS EFFORT MATRIX */}
-      {boardMode === 'matrix' && (
-        <div className="space-y-4">
-          <div className="p-3 bg-stone-100 dark:bg-[#18191c] rounded-xl border border-stone-200 dark:border-stone-800 text-xs text-stone-600 dark:text-stone-300 flex items-center justify-between">
-            <span>
-              <strong>Strategic Prioritization Matrix</strong>: Evaluates Business Value against Delivery Effort sizing.
-            </span>
-            <span className="text-[11px] text-[#d4af37] font-semibold">
-              Quad Focus: Quick Wins & Strategic Bets
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Quad 1: Quick Wins */}
-            <div className="bg-emerald-500/5 dark:bg-[#1a231f] border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
-              <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                <div>
-                  <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4" /> 1. Quick Wins (High Value &bull; Small Effort)
-                  </h3>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400">Do first: immediate ROI with minimal friction</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold font-mono text-xs">
-                  {
-                    filteredCards.filter((c) => {
-                      const a = assessmentsMap[c.id];
-                      return a && a.businessValue === 'High' && (a.effort === 'Small' || a.effort === 'Medium');
-                    }).length
-                  }
-                </span>
-              </div>
-              <div className="space-y-2.5">
-                {filteredCards
-                  .filter((c) => {
-                    const a = assessmentsMap[c.id];
-                    return a && a.businessValue === 'High' && (a.effort === 'Small' || a.effort === 'Medium');
-                  })
-                  .map(renderCardItem)}
-              </div>
-            </div>
-
-            {/* Quad 2: Strategic Bets */}
-            <div className="bg-amber-500/5 dark:bg-[#25221b] border-2 border-amber-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
-              <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
-                <div>
-                  <h3 className="text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4" /> 2. Strategic Bets (High Value &bull; Large Effort)
-                  </h3>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400">Plan carefully: core transformational deliverables</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold font-mono text-xs">
-                  {
-                    filteredCards.filter((c) => {
-                      const a = assessmentsMap[c.id];
-                      return a && a.businessValue === 'High' && a.effort === 'Large';
-                    }).length
-                  }
-                </span>
-              </div>
-              <div className="space-y-2.5">
-                {filteredCards
-                  .filter((c) => {
-                    const a = assessmentsMap[c.id];
-                    return a && a.businessValue === 'High' && a.effort === 'Large';
-                  })
-                  .map(renderCardItem)}
-              </div>
-            </div>
-
-            {/* Quad 3: Fill-ins */}
-            <div className="bg-blue-500/5 dark:bg-[#1b2028] border-2 border-blue-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
-              <div className="flex items-center justify-between pb-2 border-b border-blue-500/20">
-                <div>
-                  <h3 className="text-sm font-bold text-blue-700 dark:text-blue-400">
-                    3. Fill-ins / Incremental (Low/Med Value &bull; Small Effort)
-                  </h3>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400">Fill buffer time or delegate</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold font-mono text-xs">
-                  {
-                    filteredCards.filter((c) => {
-                      const a = assessmentsMap[c.id];
-                      return a && a.businessValue !== 'High' && a.effort === 'Small';
-                    }).length
-                  }
-                </span>
-              </div>
-              <div className="space-y-2.5">
-                {filteredCards
-                  .filter((c) => {
-                    const a = assessmentsMap[c.id];
-                    return a && a.businessValue !== 'High' && a.effort === 'Small';
-                  })
-                  .map(renderCardItem)}
-              </div>
-            </div>
-
-            {/* Quad 4: Reconsider / Drop */}
-            <div className="bg-stone-500/5 dark:bg-[#202022] border-2 border-stone-500/40 rounded-2xl p-4 space-y-3 min-h-[300px]">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-500/20">
-                <div>
-                  <h3 className="text-sm font-bold text-stone-700 dark:text-stone-300">
-                    4. Reconsider / Drop (Low Value &bull; Large Effort)
-                  </h3>
-                  <p className="text-[11px] text-stone-500 dark:text-stone-400">Candidates to defer or de-scope</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-stone-500/20 text-stone-700 dark:text-stone-300 font-bold font-mono text-xs">
-                  {
-                    filteredCards.filter((c) => {
-                      const a = assessmentsMap[c.id];
-                      return a && a.businessValue === 'Low' && a.effort === 'Large';
-                    }).length
-                  }
-                </span>
-              </div>
-              <div className="space-y-2.5">
-                {filteredCards
-                  .filter((c) => {
-                    const a = assessmentsMap[c.id];
-                    return a && a.businessValue === 'Low' && a.effort === 'Large';
-                  })
-                  .map(renderCardItem)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODE 4: WORKSTREAM TRACKS */}
-      {boardMode === 'workstream' && (
-        <div className="space-y-6">
-          {project.workstreams.map((ws) => {
-            const wsCards = filteredCards.filter((c) => c.workstreamId === ws.id);
-
-            return (
-              <div
-                key={ws.id}
-                className="bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] rounded-2xl p-5 space-y-3 shadow-xs"
-              >
-                <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="w-3.5 h-3.5 rounded-full"
-                      style={{ backgroundColor: ws.color || '#d4af37' }}
-                    />
-                    <div>
-                      <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
-                        {ws.name}
-                      </h3>
-                      <p className="text-xs text-stone-500 dark:text-stone-400">
-                        Track Lead: <strong>{ws.leadName}</strong>
-                      </p>
-                    </div>
+                  <div className="text-[11px] text-stone-500 dark:text-stone-400 font-semibold mt-0.5">
+                    {label}
                   </div>
-                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300">
-                    {wsCards.length} deliverables
-                  </span>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {wsCards.map(renderCardItem)}
-                  {wsCards.length === 0 && (
-                    <div className="col-span-full py-6 text-center text-xs text-stone-400">
-                      No cards found in this workstream matching the search query.
-                    </div>
-                  )}
-                </div>
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 h-fit">
+                  {colCards.length}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* MODE 5: DELIVERY STAGES */}
-      {boardMode === 'stage' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
-          {STAGES.map((stage) => {
-            const stageCards = filteredCards.filter((c) => c.currentStage === stage);
-
-            return (
-              <div
-                key={stage}
-                className="bg-stone-50/60 dark:bg-[#18191c] border border-stone-200 dark:border-[#2e303a] rounded-2xl p-3.5 flex flex-col min-w-[240px] min-h-[480px] space-y-3"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
-                  <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider truncate">
-                    {stage}
-                  </h3>
-                  <span className="text-xs font-mono font-bold px-2 py-0.2 rounded-full bg-white dark:bg-[#20222a] border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300">
-                    {stageCards.length}
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {stageCards.map(renderCardItem)}
-                  {stageCards.length === 0 && (
-                    <div className="h-40 flex items-center justify-center text-xs text-stone-400 italic">
-                      No cards in {stage}
-                    </div>
-                  )}
-                </div>
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {colCards.map(renderCardItem)}
+                {colCards.length === 0 && (
+                  <div className="h-40 flex items-center justify-center text-xs text-stone-400 italic">
+                    No deliverables in {p}
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* SLIDE-OVER WORKING SESSION DRAWER */}
       {selectedCardForDrawer && (

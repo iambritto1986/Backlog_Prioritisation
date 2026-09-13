@@ -831,8 +831,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
           )}
 
           {boardGroupBy === 'stage' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {(['Requirements', 'Architecture & Design', 'Development', 'Testing'] as DeliveryStage[]).map((st) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              {(['Requirements', 'Architecture & Design', 'Development', 'Testing', 'Delivered'] as DeliveryStage[]).map((st) => {
                 const columnCards = filteredCards.filter((c) => c.currentStage === st);
 
                 return (
