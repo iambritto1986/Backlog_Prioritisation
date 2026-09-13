@@ -22,27 +22,34 @@ export const SignInScreen: React.FC = () => {
     <div className="w-full">
       <SignIn
         appearance={{
+          layout: {
+            logoPlacement: 'none',
+          },
           variables: {
             colorPrimary: '#d4af37',
-            colorBackground: '#121318',
+            colorBackground: '#16181f',
             colorText: '#e5e7eb',
             colorTextSecondary: '#a8a29e',
-            colorInputBackground: '#18191c',
+            colorInputBackground: '#1c1e26',
             colorInputText: '#e5e7eb',
             borderRadius: '0.75rem',
+            colorDanger: '#ef4444',
           },
           elements: {
             rootBox: 'w-full mx-auto',
-            card: 'w-full shadow-xl',
+            cardBox: 'w-full shadow-none bg-transparent',
             header: 'hidden',
-            socialButtonsBlockButton: 'bg-white hover:bg-stone-100 border border-stone-200 text-stone-900',
-            socialButtonsBlockButtonText: 'text-stone-900 font-semibold',
-            socialButtonsIconButton: 'bg-white hover:bg-stone-100 border border-stone-200',
-            dividerLine: 'bg-[#1f222c]',
-            dividerText: 'text-stone-500',
-            formFieldLabel: 'text-stone-300',
-            footerActionText: 'text-stone-500',
-            footer: 'bg-transparent',
+            formButtonPrimary: 'bg-[#d4af37] text-[#121318] hover:bg-[#c29e2f] font-bold border border-[#b8952c]',
+            socialButtonsBlockButton: 'bg-[#f8f9fa] hover:bg-[#e2e8f0] border border-[#cbd5e1] text-[#0f172a] shadow-sm',
+            socialButtonsBlockButtonText: 'text-[#0f172a] font-bold',
+            socialButtonsIconButton: 'bg-[#f8f9fa] hover:bg-[#e2e8f0] border border-[#cbd5e1] shadow-sm text-[#0f172a]',
+            dividerLine: 'bg-[#2e303a]',
+            dividerText: 'text-[#94a3b8] font-medium text-xs',
+            formFieldLabel: 'text-[#cbd5e1] font-semibold text-sm',
+            formFieldInput: 'border-[#2e303a] bg-[#14151b] focus:border-[#d4af37] text-white',
+            footerActionText: 'text-[#94a3b8]',
+            footerActionLink: 'text-[#d4af37] hover:text-[#c29e2f] font-bold',
+            footer: 'hidden',
           },
         }}
       />

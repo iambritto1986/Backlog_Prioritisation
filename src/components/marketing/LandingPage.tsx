@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { BananaLogo } from '../common/BananaLogo';
 import { SignInScreen } from '../auth/SignInScreen';
+import { GoldenFluidBackground } from './GoldenFluidBackground';
 
 /**
  * The public, signed-out landing page — what a visitor sees before they've
@@ -19,8 +20,9 @@ import { SignInScreen } from '../auth/SignInScreen';
  */
 export const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-[#0b0c10] text-[#e5e7eb] font-sans">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+    <div className="min-h-screen bg-[#0b0c10] text-[#e5e7eb] font-sans relative overflow-hidden">
+      <GoldenFluidBackground />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 relative z-10">
         {/* Brand mark */}
         <div className="flex items-center gap-2.5 mb-12 sm:mb-16">
           <div className="w-10 h-10 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center shadow-xs">
