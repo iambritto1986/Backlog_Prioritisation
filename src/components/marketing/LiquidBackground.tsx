@@ -202,7 +202,11 @@ export const LiquidBackground: React.FC = () => {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0"
+      // opacity-60: the gold ridges in the shader are bright enough to cut
+      // into the body text that sits on top of them (visible on mobile,
+      // where the feature list has less side margin from the animation).
+      // Dimming it keeps the movement without fighting legibility.
+      className="fixed inset-0 pointer-events-none z-0 opacity-60"
     />
   );
 };
