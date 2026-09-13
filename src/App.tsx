@@ -18,9 +18,10 @@ import { ProjectOverview } from './components/project/ProjectOverview';
 import { SessionRoom } from './components/session/SessionRoom';
 import { ProjectBoard } from './components/board/ProjectBoard';
 import { SessionResults } from './components/results/SessionResults';
-import { ExcelImportWizard } from './components/import/ExcelImportWizard';
+import { ExcelImportWizard, ImportDestinationConfig } from './components/import/ExcelImportWizard';
 import { CreateSessionModal } from './components/session/CreateSessionModal';
 import { PrdAcceptanceModal } from './components/verification/PrdAcceptanceModal';
+import { AlertTriangle } from 'lucide-react';
 
 export type ActiveView =
   | 'home'
@@ -47,6 +48,7 @@ export default function App() {
   // Modals
   const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Initialize data from Persistence & Auth Services
@@ -54,6 +56,27 @@ export default function App() {
     document.documentElement.classList.add('dark');
     initApp();
   }, []);
+
+  // Synchronize cards whenever selectedProjectId changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      persistenceService.getCards(selectedProjectId).then(setCards);
+      localStorage.setItem('pp_active_project_id', selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
+  // Synchronize active session & view to localStorage
+  useEffect(() => {
+    if (selectedSessionId) {
+      localStorage.setItem('pp_active_session_id', selectedSessionId);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (activeView) {
+      localStorage.setItem('pp_active_view', activeView);
+    }
+  }, [activeView]);
 
   const initApp = async () => {
     let storedProjects = await persistenceService.getProjects();
@@ -69,14 +92,29 @@ export default function App() {
     }
 
     const storedSessions = await persistenceService.getSessions();
-    const activeProj = storedProjects[0];
+
+    const savedProjId = localStorage.getItem('pp_active_project_id');
+    const savedSessId = localStorage.getItem('pp_active_session_id');
+    const savedView = localStorage.getItem('pp_active_view') as ActiveView | null;
+
+    const activeProj =
+      (savedProjId && storedProjects.find((p) => p.id === savedProjId)) || storedProjects[0];
+    const activeProjSessions = storedSessions.filter((s) => s.projectId === activeProj?.id);
+    const activeSess =
+      (savedSessId && activeProjSessions.find((s) => s.id === savedSessId)) ||
+      activeProjSessions[0] ||
+      storedSessions[0];
+
     const storedCards = await persistenceService.getCards(activeProj?.id || '');
 
     setProjects(storedProjects);
     setSessions(storedSessions);
     setCards(storedCards);
     if (activeProj) setSelectedProjectId(activeProj.id);
-    if (storedSessions[0]) setSelectedSessionId(storedSessions[0].id);
+    if (activeSess) setSelectedSessionId(activeSess.id);
+    if (savedView) {
+      setActiveView(savedView);
+    }
 
     // Set auth user
     const user = authService.getCurrentUser();
@@ -302,9 +340,57 @@ export default function App() {
     showToast(`Updated workstream "${workstream.name}".`);
   };
 
+  // Helper to sync imported assessment metrics into a session
+  const syncAssessmentsForSession = async (sessionId: string, cardsList: Card[]) => {
+    for (const card of cardsList) {
+      const meta = card.sourceMeta || {};
+      const custom = card.customFields || {};
+
+      const businessValue = (meta.businessValue || custom.businessValue || 'Unknown') as any;
+      const impact = (meta.impact || custom.impact || 'Unknown') as any;
+      const urgency = (meta.urgency || custom.urgency || 'Unknown') as any;
+      const effort = (meta.effort || custom.effort || 'Unknown') as any;
+      const decision = (meta.sessionDecision || custom.sessionDecision || 'Not Discussed') as any;
+      const outcome = (meta.milestoneOutcome || custom.milestoneOutcome || card.targetDateOrQuarter || '') as string;
+      const rationale = (meta.teamRationale || custom.teamRationale || '') as string;
+      const rankRaw = meta.workstreamRank || custom.workstreamRank;
+      const rank = rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null;
+
+      if (
+        businessValue !== 'Unknown' ||
+        impact !== 'Unknown' ||
+        urgency !== 'Unknown' ||
+        effort !== 'Unknown' ||
+        decision !== 'Not Discussed' ||
+        outcome ||
+        rationale
+      ) {
+        await persistenceService.saveAssessment({
+          sessionId,
+          cardId: card.id,
+          proposedPriority: card.currentPriority,
+          businessValue,
+          memberImpact: impact,
+          urgency,
+          effort,
+          workstreamRank: rank,
+          decision,
+          milestoneOutcome: outcome,
+          teamRationale: rationale,
+          validationNeeds: '',
+          lastEditedBy: 'Import Synchronization',
+          lastEditedAt: new Date().toISOString(),
+          version: 1,
+        });
+      }
+    }
+  };
+
   // Import completed (with Automatic Workstream Formulation & Assessment Sync)
-  const handleImportComplete = async (importedCards: Card[], appendMode: boolean) => {
-    const currentProj = projects.find((p) => p.id === selectedProjectId);
+  const handleImportComplete = async (
+    importedCards: Card[],
+    destination: ImportDestinationConfig
+  ) => {
     const PALETTE = [
       '#d4af37', // Gold
       '#3b82f6', // Blue
@@ -317,6 +403,123 @@ export default function App() {
       '#6366f1', // Indigo
       '#14b8a6', // Teal
     ];
+
+    if (destination.mode === 'new_project') {
+      const newProjId = `proj-${Date.now()}`;
+
+      // Extract unique workstreams from imported data
+      const workstreams: Workstream[] = [];
+      const seenWs = new Set<string>();
+
+      importedCards.forEach((card) => {
+        const wsName = (card.workstreamName || 'General').trim();
+        if (!wsName) return;
+        const norm = wsName.toLowerCase();
+        if (!seenWs.has(norm)) {
+          seenWs.add(norm);
+          const leadName =
+            (card.sourceMeta as any)?.workstreamLead ||
+            card.customFields?.workstreamLead ||
+            card.internalOwner ||
+            currentUser.name ||
+            'Workstream Lead';
+          const wsId = `ws-${norm.replace(/[^a-z0-9]/g, '-')}-${Date.now() + Math.random().toString(36).substring(2, 5)}`;
+          workstreams.push({
+            id: wsId,
+            projectId: newProjId,
+            name: wsName,
+            leadName,
+            color: PALETTE[workstreams.length % PALETTE.length],
+            displayOrder: workstreams.length + 1,
+          });
+        }
+      });
+
+      if (workstreams.length === 0) {
+        workstreams.push({
+          id: `ws-core-${Date.now()}`,
+          projectId: newProjId,
+          name: 'Core Deliverables',
+          leadName: currentUser.name,
+          color: '#d4af37',
+          displayOrder: 1,
+        });
+      }
+
+      const newProj: Project = {
+        id: newProjId,
+        workspaceId: workspace.id,
+        name: destination.newProjectName || 'Imported Product Backlog',
+        description: `Imported spreadsheet containing ${importedCards.length} deliverables across ${workstreams.length} workstreams.`,
+        targetHorizon: destination.newProjectHorizon || 'June 2027',
+        impactLabelName: destination.newProjectImpactLabel || 'Member Impact',
+        workstreams,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await persistenceService.saveProject(newProj);
+
+      // Create an initial Facilitation Session for the new project
+      const newSession: PlanningSession = {
+        id: `sess-${Date.now()}`,
+        projectId: newProjId,
+        name: `${newProj.name} Prioritization Workshop`,
+        date: new Date().toISOString().split('T')[0],
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
+        objective: `Align and prioritize backlog deliverables for ${newProj.name}`,
+        deliveryHorizon: newProj.targetHorizon,
+        agenda: [
+          { id: `ag-1-${Date.now()}`, title: 'Welcome & Objectives', completed: true, allocatedMinutes: 10 },
+          { id: `ag-2-${Date.now()}`, title: 'Review & Sizing of Deliverables', completed: false, allocatedMinutes: 45 },
+          { id: `ag-3-${Date.now()}`, title: 'Final Disposition & Actions', completed: false, allocatedMinutes: 20 },
+        ],
+        stage: 'live',
+        facilitatorId: currentUser.id,
+        facilitatorName: currentUser.name,
+        version: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await persistenceService.saveSession(newSession);
+
+      // Map card IDs and project IDs
+      const wsMap = new Map(workstreams.map((w) => [w.name.toLowerCase().trim(), w]));
+      importedCards.forEach((c) => {
+        c.projectId = newProjId;
+        const matched = wsMap.get((c.workstreamName || 'General').toLowerCase().trim());
+        if (matched) {
+          c.workstreamId = matched.id;
+          c.workstreamName = matched.name;
+        }
+      });
+
+      // Save cards directly to the new project
+      await persistenceService.replaceCardsForProject(newProjId, importedCards);
+      await syncAssessmentsForSession(newSession.id, importedCards);
+
+      const allProj = await persistenceService.getProjects();
+      const allSess = await persistenceService.getSessions();
+      setProjects(allProj);
+      setSessions(allSess);
+      setSelectedProjectId(newProjId);
+      setSelectedSessionId(newSession.id);
+      setCards(importedCards);
+      setActiveView('project_overview');
+
+      localStorage.setItem('pp_active_project_id', newProjId);
+      localStorage.setItem('pp_active_session_id', newSession.id);
+      localStorage.setItem('pp_active_view', 'project_overview');
+
+      showToast(`Created new project "${newProj.name}" with ${importedCards.length} deliverables!`);
+      return;
+    }
+
+    // Existing project mode
+    const currentProj =
+      projects.find((p) => p.id === destination.targetProjectId) ||
+      projects.find((p) => p.id === selectedProjectId) ||
+      projects[0];
 
     if (currentProj) {
       const existingWsMap = new Map<string, Workstream>(
@@ -351,7 +554,6 @@ export default function App() {
           updatedWorkstreams.push(newWs);
           existingWsMap.set(norm, newWs);
         } else {
-          // If existing workstream had a generic lead but imported data has a specific lead, update it
           const existingWs = existingWsMap.get(norm)!;
           if (leadName && leadName !== 'TBD' && (!existingWs.leadName || existingWs.leadName === 'TBD Lead')) {
             existingWs.leadName = leadName;
@@ -361,6 +563,7 @@ export default function App() {
 
       // Update card workstreamIds to match formulated workstream IDs
       importedCards.forEach((card) => {
+        card.projectId = currentProj.id;
         const wsName = (card.workstreamName || 'General').trim().toLowerCase();
         const matchedWs = existingWsMap.get(wsName);
         if (matchedWs) {
@@ -378,64 +581,34 @@ export default function App() {
       await persistenceService.saveProject(updatedProj);
       const allProj = await persistenceService.getProjects();
       setProjects(allProj);
-    }
 
-    // Save cards to persistence
-    await persistenceService.saveCards(importedCards);
-
-    // Sync imported assessment values into sessions if available
-    const projSessions = sessions.filter((s) => s.projectId === selectedProjectId);
-    if (projSessions.length > 0) {
-      for (const sess of projSessions) {
-        for (const card of importedCards) {
-          const meta = card.sourceMeta || {};
-          const custom = card.customFields || {};
-
-          const businessValue = (meta.businessValue || custom.businessValue || 'Unknown') as any;
-          const impact = (meta.impact || custom.impact || 'Unknown') as any;
-          const urgency = (meta.urgency || custom.urgency || 'Unknown') as any;
-          const effort = (meta.effort || custom.effort || 'Unknown') as any;
-          const decision = (meta.sessionDecision || custom.sessionDecision || 'Not Discussed') as any;
-          const outcome = (meta.milestoneOutcome || custom.milestoneOutcome || card.targetDateOrQuarter || '') as string;
-          const rationale = (meta.teamRationale || custom.teamRationale || '') as string;
-          const rankRaw = meta.workstreamRank || custom.workstreamRank;
-          const rank = rankRaw && !isNaN(Number(rankRaw)) ? Number(rankRaw) : null;
-
-          if (
-            businessValue !== 'Unknown' ||
-            impact !== 'Unknown' ||
-            urgency !== 'Unknown' ||
-            effort !== 'Unknown' ||
-            decision !== 'Not Discussed' ||
-            outcome ||
-            rationale
-          ) {
-            await persistenceService.saveAssessment({
-              sessionId: sess.id,
-              cardId: card.id,
-              proposedPriority: card.currentPriority,
-              businessValue,
-              memberImpact: impact,
-              urgency,
-              effort,
-              workstreamRank: rank,
-              decision,
-              milestoneOutcome: outcome,
-              teamRationale: rationale,
-              validationNeeds: '',
-              lastEditedBy: 'Import Synchronization',
-              lastEditedAt: new Date().toISOString(),
-              version: 1,
-            });
-          }
-        }
+      // Overwrite vs Merge Cards
+      if (destination.importAction === 'clean_replace') {
+        await persistenceService.replaceCardsForProject(currentProj.id, importedCards);
+      } else {
+        await persistenceService.saveCards(importedCards);
       }
-    }
 
-    const refreshed = await persistenceService.getCards(selectedProjectId);
-    setCards(refreshed);
-    setActiveView('project_overview');
-    showToast(`Successfully imported ${importedCards.length} deliverable cards with workstreams!`);
+      // Sync imported assessment values into sessions if available
+      const projSessions = sessions.filter((s) => s.projectId === currentProj.id);
+      for (const sess of projSessions) {
+        await syncAssessmentsForSession(sess.id, importedCards);
+      }
+
+      const refreshed = await persistenceService.getCards(currentProj.id);
+      setCards(refreshed);
+      setSelectedProjectId(currentProj.id);
+      setActiveView('project_overview');
+
+      localStorage.setItem('pp_active_project_id', currentProj.id);
+      localStorage.setItem('pp_active_view', 'project_overview');
+
+      showToast(
+        destination.importAction === 'clean_replace'
+          ? `Cleanly replaced backlog with ${importedCards.length} spreadsheet deliverables!`
+          : `Updated project with ${importedCards.length} spreadsheet deliverables!`
+      );
+    }
   };
 
   // Active object references
@@ -482,7 +655,7 @@ export default function App() {
         onNavigateResults={() => setActiveView('session_results')}
         onOpenImport={() => setActiveView('import_wizard')}
         onOpenVerification={() => setShowVerificationModal(true)}
-        onResetData={handleResetData}
+        onResetData={() => setShowResetModal(true)}
         onSwitchUser={handleSwitchUser}
         onToggleTheme={handleToggleTheme}
       />
@@ -590,11 +763,12 @@ export default function App() {
         )}
 
         {/* VIEW 6: EXCEL IMPORT WIZARD */}
-        {activeView === 'import_wizard' && currentProject && (
+        {activeView === 'import_wizard' && (
           <ExcelImportWizard
-            project={currentProject}
+            project={currentProject || null}
+            projects={projects}
             existingCards={projectCards}
-            onCancel={() => setActiveView('project_overview')}
+            onCancel={() => setActiveView(currentProject ? 'project_overview' : 'home')}
             onImportComplete={handleImportComplete}
           />
         )}
@@ -621,6 +795,45 @@ export default function App() {
       {/* PRD Acceptance Verification Modal */}
       {showVerificationModal && (
         <PrdAcceptanceModal onClose={() => setShowVerificationModal(false)} />
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#121318] border border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-[#e5e7eb] animate-in zoom-in-95 duration-100">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Reset All Workspace Data?</h3>
+                <p className="text-xs text-stone-400">Restores PRD factory defaults</p>
+              </div>
+            </div>
+            <p className="text-xs text-stone-300 leading-relaxed">
+              This will permanently remove any imported spreadsheets, custom workstreams, deliverables, and live workshop assessments, resetting back to the initial sample dataset.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1f222c]">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="px-4 py-2 rounded-xl bg-[#1a1b24] hover:bg-[#222430] text-xs font-semibold text-stone-300 border border-[#2a2d3d] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowResetModal(false);
+                  await handleResetData();
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg transition-colors"
+              >
+                Yes, Reset All Data
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

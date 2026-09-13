@@ -126,6 +126,22 @@ export class PersistenceService implements IPersistenceService {
     localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(Array.from(map.values())));
   }
 
+  async replaceCardsForProject(projectId: string, newCards: Card[]): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
+    const existing: Card[] = raw ? JSON.parse(raw) : [];
+    // Remove all previous cards belonging to this project
+    const otherCards = existing.filter((c) => c.projectId !== projectId);
+    const combined = [...otherCards, ...newCards];
+    localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(combined));
+  }
+
+  async clearCardsForProject(projectId: string): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
+    const existing: Card[] = raw ? JSON.parse(raw) : [];
+    const remaining = existing.filter((c) => c.projectId !== projectId);
+    localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(remaining));
+  }
+
   async updateCard(card: Card): Promise<void> {
     await this.saveCards([card]);
   }

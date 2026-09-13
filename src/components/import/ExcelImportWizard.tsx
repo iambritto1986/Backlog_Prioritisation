@@ -14,6 +14,7 @@ import {
   UserCheck,
   Layers,
   HelpCircle,
+  FolderKanban,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Project, Card, Priority, DeliveryStage } from '../../types';
@@ -30,16 +31,27 @@ import {
 } from '../../utils/excelImport';
 import { generateSampleAvmaisWorkbook } from '../../utils/sampleWorkbook';
 
+export interface ImportDestinationConfig {
+  mode: 'new_project' | 'existing_project';
+  newProjectName: string;
+  newProjectHorizon: string;
+  newProjectImpactLabel: string;
+  targetProjectId: string;
+  importAction: 'clean_replace' | 'update_merge' | 'append_only';
+}
+
 interface ExcelImportWizardProps {
-  project: Project;
-  existingCards: Card[];
+  project?: Project | null;
+  projects?: Project[];
+  existingCards?: Card[];
   onCancel: () => void;
-  onImportComplete: (cards: Card[], appendMode: boolean) => void;
+  onImportComplete: (cards: Card[], destination: ImportDestinationConfig) => void;
 }
 
 export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   project,
-  existingCards,
+  projects = [],
+  existingCards = [],
   onCancel,
   onImportComplete,
 }) => {
@@ -51,7 +63,12 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   const [columnMapping, setColumnMapping] = useState<ColumnMappingConfig | null>(null);
   const [candidateRows, setCandidateRows] = useState<ImportCandidateRow[]>([]);
   const [ownerAnalysis, setOwnerAnalysis] = useState<OwnerResolutionInfo[]>([]);
-  const [importMode, setImportMode] = useState<'update' | 'append'>('update');
+  const [destMode, setDestMode] = useState<'new_project' | 'existing_project'>('new_project');
+  const [newProjName, setNewProjName] = useState<string>('');
+  const [newProjHorizon, setNewProjHorizon] = useState<string>('June 2027');
+  const [newProjImpactLabel, setNewProjImpactLabel] = useState<string>('Member Impact');
+  const [selectedTargetProjId, setSelectedTargetProjId] = useState<string>(project?.id || projects[0]?.id || '');
+  const [importAction, setImportAction] = useState<'clean_replace' | 'update_merge' | 'append_only'>('clean_replace');
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
@@ -64,6 +81,12 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
       const wb = parseWorkbookFile(buffer);
       setWorkbook(wb);
       setFileName(name);
+
+      const cleanName = name
+        .replace(/\.(xlsx|xls|csv)$/i, '')
+        .replace(/[-_]/g, ' ')
+        .trim();
+      setNewProjName(cleanName || 'Imported Product Backlog');
 
       const firstSheet = wb.SheetNames[0];
       const data = extractSheetData(wb, firstSheet);
@@ -148,16 +171,18 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
 
   const handleCommitImport = () => {
     const includedRows = candidateRows.filter((r) => r.included);
+    const targetProjId = destMode === 'new_project' ? `proj-${Date.now()}` : selectedTargetProjId;
+    const targetProj = projects.find((p) => p.id === targetProjId) || project;
 
     const importedCards: Card[] = includedRows.map((r) => {
       // Find or match workstream
-      const ws = project.workstreams.find(
+      const ws = targetProj?.workstreams?.find(
         (w) => w.name.toLowerCase().trim() === r.workstream.toLowerCase().trim()
       );
 
       return {
         id: r.stableId,
-        projectId: project.id,
+        projectId: targetProjId,
         workstreamId: ws ? ws.id : `ws-${r.workstream.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
         workstreamName: r.workstream,
         title: r.deliverable,
@@ -200,8 +225,17 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
       };
     });
 
-    onImportComplete(importedCards, importMode === 'append');
+    onImportComplete(importedCards, {
+      mode: destMode,
+      newProjectName: newProjName.trim() || 'Imported Product Backlog',
+      newProjectHorizon: newProjHorizon.trim() || 'June 2027',
+      newProjectImpactLabel: newProjImpactLabel || 'Member Impact',
+      targetProjectId: targetProjId,
+      importAction,
+    });
   };
+
+  const activeDestProject = projects.find((p) => p.id === selectedTargetProjId) || project;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -217,7 +251,13 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                 Intelligent Spreadsheet Import Wizard
               </h2>
               <p className="text-xs text-stone-400">
-                Project: <strong className="text-white">{project.name}</strong> &bull; Auto-detects multi-row headers & workstreams
+                Target:{' '}
+                <strong className="text-white">
+                  {destMode === 'new_project'
+                    ? newProjName || 'New Project'
+                    : activeDestProject?.name || 'Existing Project'}
+                </strong>{' '}
+                &bull; Auto-detects multi-row headers & workstreams
               </p>
             </div>
           </div>
@@ -473,6 +513,154 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Target Project & Destination Scope */}
+                <div className="bg-[#181a22] border border-[#282c38] rounded-2xl p-5 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <FolderKanban className="w-4 h-4 text-[#d4af37]" />
+                      Project Destination & Scope
+                    </h3>
+                    <p className="text-xs text-stone-400 mt-0.5">
+                      Choose whether to create a clean isolated project or import into an existing project.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Option 1: New Project */}
+                    <div
+                      onClick={() => setDestMode('new_project')}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        destMode === 'new_project'
+                          ? 'border-[#d4af37] bg-[#20232e]'
+                          : 'border-[#282c38] bg-[#14161f] hover:border-stone-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#d4af37]" />
+                          Create New Project (Recommended)
+                        </span>
+                        {destMode === 'new_project' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d4af37]/20 text-[#fcd34d] border border-[#d4af37]/40">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-stone-400 mb-3 leading-relaxed">
+                        Creates a clean dedicated project with only these spreadsheet deliverables and auto-generates a workshop room.
+                      </p>
+
+                      {destMode === 'new_project' && (
+                        <div className="space-y-3 pt-2 border-t border-[#2d3142]" onClick={(e) => e.stopPropagation()}>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-stone-300 mb-1">Project Name</label>
+                            <input
+                              type="text"
+                              value={newProjName}
+                              onChange={(e) => setNewProjName(e.target.value)}
+                              placeholder="e.g. AVMAIS June 2027 Deliverables"
+                              className="w-full px-3 py-1.5 rounded-lg border border-[#3b4054] bg-[#121318] text-xs text-white focus:outline-none focus:border-[#d4af37]"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-stone-300 mb-1">Delivery Horizon</label>
+                              <input
+                                type="text"
+                                value={newProjHorizon}
+                                onChange={(e) => setNewProjHorizon(e.target.value)}
+                                placeholder="e.g. June 2027"
+                                className="w-full px-3 py-1.5 rounded-lg border border-[#3b4054] bg-[#121318] text-xs text-white focus:outline-none focus:border-[#d4af37]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-stone-300 mb-1">Impact Metric</label>
+                              <select
+                                value={newProjImpactLabel}
+                                onChange={(e) => setNewProjImpactLabel(e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-lg border border-[#3b4054] bg-[#121318] text-xs text-white focus:outline-none focus:border-[#d4af37]"
+                              >
+                                <option value="Member Impact">Member Impact</option>
+                                <option value="Customer Impact">Customer Impact</option>
+                                <option value="Business Impact">Business Impact</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Option 2: Existing Project */}
+                    <div
+                      onClick={() => setDestMode('existing_project')}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        destMode === 'existing_project'
+                          ? 'border-[#d4af37] bg-[#20232e]'
+                          : 'border-[#282c38] bg-[#14161f] hover:border-stone-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-blue-400" />
+                          Import into Existing Project
+                        </span>
+                        {destMode === 'existing_project' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-stone-400 mb-3 leading-relaxed">
+                        Imports deliverables into an existing project. You can cleanly replace previous dummy cards or merge.
+                      </p>
+
+                      {destMode === 'existing_project' && (
+                        <div className="space-y-3 pt-2 border-t border-[#2d3142]" onClick={(e) => e.stopPropagation()}>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-stone-300 mb-1">Select Target Project</label>
+                            <select
+                              value={selectedTargetProjId}
+                              onChange={(e) => setSelectedTargetProjId(e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-[#3b4054] bg-[#121318] text-xs text-white focus:outline-none focus:border-[#d4af37]"
+                            >
+                              {projects.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.workstreams?.length || 0} workstreams)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-stone-300 mb-1">Overwrite Policy</label>
+                            <div className="space-y-1.5">
+                              <label className="flex items-center gap-2 text-[11px] text-stone-200 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="importActionRadio"
+                                  checked={importAction === 'clean_replace'}
+                                  onChange={() => setImportAction('clean_replace')}
+                                  className="text-[#d4af37]"
+                                />
+                                <span><strong>Clean Replace (Recommended)</strong> — Overwrite previous cards so only this spreadsheet appears</span>
+                              </label>
+                              <label className="flex items-center gap-2 text-[11px] text-stone-200 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="importActionRadio"
+                                  checked={importAction === 'update_merge'}
+                                  onChange={() => setImportAction('update_merge')}
+                                  className="text-[#d4af37]"
+                                />
+                                <span><strong>Merge & Update</strong> — Keep existing cards, update matching records</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 {/* Step 1 Actions */}
                 <div className="pt-4 border-t border-[#252836] flex items-center justify-between">
@@ -1028,75 +1216,113 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
             <div className="bg-[#181a22] text-white p-5 rounded-2xl border border-[#282c38] space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <FileCheck className="w-5 h-5 text-[#d4af37]" />
-                Safe Import & Conflict Policy
+                Destination & Import Summary
               </h3>
               <p className="text-xs text-stone-300 leading-relaxed">
-                Re-import will formulate missing workstream tracks, attach leads, and preserve existing in-session assessments and decisions.
+                Review your destination settings and policy before importing. Banana OS will formulate all unique workstreams, attach designated leads, and populate deliverables.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <label
-                  onClick={() => setImportMode('update')}
-                  className={`p-3.5 rounded-xl border cursor-pointer flex items-start gap-3 transition-colors ${
-                    importMode === 'update'
-                      ? 'border-[#d4af37] bg-[#20232e]'
-                      : 'border-[#282c38] bg-[#14161f]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="importMode"
-                    checked={importMode === 'update'}
-                    onChange={() => setImportMode('update')}
-                    className="mt-0.5 text-[#d4af37]"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-white">Update by Record ID</div>
-                    <div className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
-                      Updates matched card records while preserving in-session assessments, decisions, and discussion history.
-                    </div>
+              {/* Destination badge summary */}
+              <div className="bg-[#121318] p-4 rounded-xl border border-[#2d3142] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <div className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">
+                    Destination Project
                   </div>
-                </label>
+                  <div className="text-sm font-bold text-white mt-0.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#d4af37]" />
+                    {destMode === 'new_project'
+                      ? newProjName || 'New Project'
+                      : activeDestProject?.name || 'Existing Project'}
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#20232e] text-stone-300 border border-[#3b4054]">
+                      {destMode === 'new_project' ? 'Brand New Project' : 'Existing Project'}
+                    </span>
+                  </div>
+                </div>
 
-                <label
-                  onClick={() => setImportMode('append')}
-                  className={`p-3.5 rounded-xl border cursor-pointer flex items-start gap-3 transition-colors ${
-                    importMode === 'append'
-                      ? 'border-[#d4af37] bg-[#20232e]'
-                      : 'border-[#282c38] bg-[#14161f]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="importMode"
-                    checked={importMode === 'append'}
-                    onChange={() => setImportMode('append')}
-                    className="mt-0.5 text-[#d4af37]"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-white">Append as New Deliverables</div>
-                    <div className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">
-                      Generates fresh stable IDs for all items without altering existing backlog cards.
-                    </div>
+                <div className="text-left sm:text-right">
+                  <div className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">
+                    Action Policy
                   </div>
-                </label>
+                  <div className="text-xs font-semibold text-[#fcd34d] mt-0.5">
+                    {destMode === 'new_project'
+                      ? 'Clean Project Creation + Default Workshop'
+                      : importAction === 'clean_replace'
+                      ? 'Clean Replace (Wipes previous dummy cards)'
+                      : importAction === 'update_merge'
+                      ? 'Merge & Update Cards'
+                      : 'Append as New Items'}
+                  </div>
+                </div>
               </div>
+
+              {destMode === 'existing_project' && (
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-white mb-2">Change Overwrite Policy:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label
+                      onClick={() => setImportAction('clean_replace')}
+                      className={`p-3 rounded-xl border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        importAction === 'clean_replace'
+                          ? 'border-[#d4af37] bg-[#20232e]'
+                          : 'border-[#282c38] bg-[#14161f]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="step5Action"
+                        checked={importAction === 'clean_replace'}
+                        onChange={() => setImportAction('clean_replace')}
+                        className="mt-0.5 text-[#d4af37]"
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-white">Clean Replace (Recommended)</div>
+                        <div className="text-[11px] text-stone-400 mt-0.5">
+                          Removes dummy/sample cards so only this spreadsheet's items exist.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() => setImportAction('update_merge')}
+                      className={`p-3 rounded-xl border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        importAction === 'update_merge'
+                          ? 'border-[#d4af37] bg-[#20232e]'
+                          : 'border-[#282c38] bg-[#14161f]'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="step5Action"
+                        checked={importAction === 'update_merge'}
+                        onChange={() => setImportAction('update_merge')}
+                        className="mt-0.5 text-[#d4af37]"
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-white">Merge & Update</div>
+                        <div className="text-[11px] text-stone-400 mt-0.5">
+                          Updates matching cards and appends new deliverables.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Summary statistics */}
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="bg-[#181a22] p-4 rounded-2xl border border-[#282c38]">
                 <div className="text-2xl font-bold text-emerald-400">
-                  {candidateRows.filter((r) => r.included && !r.isExistingCard).length}
+                  {candidateRows.filter((r) => r.included).length}
                 </div>
-                <div className="text-xs text-stone-400 mt-1">New Cards to Create</div>
+                <div className="text-xs text-stone-400 mt-1">Deliverables to Import</div>
               </div>
 
               <div className="bg-[#181a22] p-4 rounded-2xl border border-[#282c38]">
-                <div className="text-2xl font-bold text-amber-400">
-                  {candidateRows.filter((r) => r.included && r.isExistingCard).length}
+                <div className="text-2xl font-bold text-[#d4af37]">
+                  {new Set(candidateRows.filter((r) => r.included).map((r) => r.workstream)).size}
                 </div>
-                <div className="text-xs text-stone-400 mt-1">Existing Cards to Update</div>
+                <div className="text-xs text-stone-400 mt-1">Workstream Tracks</div>
               </div>
 
               <div className="bg-[#181a22] p-4 rounded-2xl border border-[#282c38]">

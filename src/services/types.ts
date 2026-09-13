@@ -35,6 +35,8 @@ export interface IPersistenceService {
   getCards(projectId: string): Promise<Card[]>;
   getCard(id: string): Promise<Card | null>;
   saveCards(cards: Card[]): Promise<void>;
+  replaceCardsForProject(projectId: string, cards: Card[]): Promise<void>;
+  clearCardsForProject(projectId: string): Promise<void>;
   saveCard(card: Card): Promise<void>;
   updateCard(card: Card): Promise<void>;
   deleteCard(id: string): Promise<void>;
