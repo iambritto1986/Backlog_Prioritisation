@@ -100,7 +100,8 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
   const deferCount = assessmentList.filter((a) => a.decision === 'Defer').length;
   const dropCount = assessmentList.filter((a) => a.decision === 'Drop').length;
   const needsValCount = assessmentList.filter((a) => a.decision === 'Needs Validation').length;
-  const notDiscussedCount = totalCards - (selectedCount + reserveCount + deferCount + dropCount + needsValCount);
+  const parkingLotCount = assessmentList.filter((a) => a.decision === 'Parking Lot').length;
+  const notDiscussedCount = totalCards - (selectedCount + reserveCount + deferCount + dropCount + needsValCount + parkingLotCount);
 
   // Validation needs items
   const validationItems = assessmentList.filter((a) => a.validationNeeds && a.validationNeeds.trim());
@@ -296,6 +297,12 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
           <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{needsValCount}</div>
           <div className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-1">Needs Validation</div>
           <div className="text-[10px] text-stone-400 mt-0.5">Flagged Gaps</div>
+        </div>
+
+        <div className="bg-white dark:bg-[#20222a] border border-violet-500/30 p-4 rounded-xl shadow-xs text-center">
+          <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{parkingLotCount}</div>
+          <div className="text-xs font-bold text-stone-700 dark:text-stone-300 mt-1">Parking Lot</div>
+          <div className="text-[10px] text-stone-400 mt-0.5">Set Aside for Later</div>
         </div>
 
         <div className="bg-white dark:bg-[#20222a] border border-blue-500/30 p-4 rounded-xl shadow-xs text-center">
@@ -522,6 +529,7 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
               <option value="Drop">Drop</option>
               <option value="Needs Validation">Needs Validation</option>
               <option value="Not Discussed">Not Discussed</option>
+              <option value="Parking Lot">Parking Lot</option>
             </select>
           </div>
         </div>
@@ -566,6 +574,8 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
                           ? 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                           : a?.decision === 'Needs Validation'
                           ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                          : a?.decision === 'Parking Lot'
+                          ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30'
                           : 'bg-stone-100 dark:bg-stone-800 text-stone-400'
                       }`}>
                         {a?.decision || 'Not Discussed'}

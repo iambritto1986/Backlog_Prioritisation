@@ -21,6 +21,8 @@ export interface User {
   isSimulated?: boolean;
 }
 
+export type PlanTier = 'Basic' | 'Pro' | 'Enterprise';
+
 export interface Workspace {
   id: string;
   name: string;
@@ -31,6 +33,23 @@ export interface Workspace {
     defaultRole: Role;
   };
   createdAt: string;
+  // Optional: only populated when read from the real backend (see
+  // PersistenceService.getWorkspacePlan). Absent for the localStorage/guest
+  // fallback path, which has no concept of plans yet.
+  planTier?: PlanTier;
+  trialStartedAt?: string;
+  maxSessionGuests?: number;
+}
+
+// Returned by PersistenceService.getWorkspacePlan() — drives the trial/limit
+// messaging in ShareSessionModal.
+export interface WorkspacePlanStatus {
+  planTier: PlanTier;
+  trialStartedAt: string;
+  trialDaysRemaining: number;
+  trialActive: boolean;
+  maxSessionGuests: number;
+  canInvite: boolean;
 }
 
 // The 5 canonical delivery stages, in pipeline order. These are the only
@@ -64,7 +83,8 @@ export type WorkshopDisposition =
   | 'Defer'
   | 'Drop'
   | 'Needs Validation'
-  | 'Not Discussed';
+  | 'Not Discussed'
+  | 'Parking Lot';
 
 export interface Workstream {
   id: string;

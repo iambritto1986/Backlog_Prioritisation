@@ -228,7 +228,8 @@ export function exportSessionResultsExcel(
   const deferCount = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Defer').length;
   const dropCount = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Drop').length;
   const needsValCount = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Needs Validation').length;
-  const notDiscussedCount = cards.length - (selectedCount + reserveCount + deferCount + dropCount + needsValCount);
+  const parkingLotCount = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Parking Lot').length;
+  const notDiscussedCount = cards.length - (selectedCount + reserveCount + deferCount + dropCount + needsValCount + parkingLotCount);
 
   const summaryData = [
     ['MEETING OUTCOME & EXECUTIVE SUMMARY'],
@@ -249,6 +250,7 @@ export function exportSessionResultsExcel(
     ['Deferred (Future Scope)', deferCount, 'Scheduled for post-horizon milestones'],
     ['Drop (Out of Scope)', dropCount, 'Excluded from future roadmap'],
     ['Needs Validation (Flagged Gaps)', needsValCount, 'Pending critical architecture, legal, or dependency resolution'],
+    ['Parking Lot (Set Aside)', parkingLotCount, 'Raised mid-session, off-topic for the current agenda item, revisit later'],
     ['Not Discussed / Pending', notDiscussedCount, 'Unreviewed items'],
     ['Total Deliverables Reviewed', cards.length, 'Total backlog items'],
     ['Total Action Items Logged', actions.length, 'Specific deliverables with assigned owners & deadlines'],
@@ -669,6 +671,7 @@ export function generateMeetingSummaryMarkdown(
   const deferredCards = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Defer');
   const dropCards = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Drop');
   const needsValCards = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Needs Validation');
+  const parkedCards = cards.filter((c) => assessmentsMap[c.id]?.decision === 'Parking Lot');
 
   let md = `# 🎯 Planning Session Outcome: ${session.name}\n\n`;
   md += `**Project:** ${project.name} | **Target Horizon:** ${session.deliveryHorizon}\n`;
@@ -684,6 +687,7 @@ export function generateMeetingSummaryMarkdown(
   md += `- **Deferred (Post-Horizon):** ${deferredCards.length}\n`;
   md += `- **Drop (Out of Scope):** ${dropCards.length}\n`;
   md += `- **Needs Validation (Flagged Gaps):** ${needsValCards.length}\n`;
+  md += `- **Parking Lot (Set Aside):** ${parkedCards.length}\n`;
   md += `- **Total Deliverables Reviewed:** ${cards.length}\n`;
   md += `- **Total Follow-Up Actions:** ${actions.length}\n`;
   md += `- **Total Stakeholder Comments:** ${comments.length}\n\n`;
@@ -721,6 +725,15 @@ export function generateMeetingSummaryMarkdown(
     md += `\n`;
   }
 
+  if (parkedCards.length > 0) {
+    md += `### 🅿️ Parking Lot — Raised This Session, Revisit Later (${parkedCards.length})\n`;
+    parkedCards.forEach((c) => {
+      const a = assessmentsMap[c.id];
+      md += `- **[${c.id}] ${c.title}**${a?.teamRationale ? `: _${a.teamRationale}_` : ''}\n`;
+    });
+    md += `\n`;
+  }
+
   if (comments.length > 0) {
     md += `### 💬 Stakeholder Discussion Notes (${comments.length})\n`;
     comments.forEach((comm) => {
@@ -747,6 +760,8 @@ function getDecisionStyle(decision?: string): string {
       return 'background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;';
     case 'Needs Validation':
       return 'background: #ffedd5; color: #c2410c; border: 1px solid #fdba74;';
+    case 'Parking Lot':
+      return 'background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd;';
     default:
       return 'background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0;';
   }

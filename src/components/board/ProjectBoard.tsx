@@ -56,6 +56,7 @@ const DISPOSITIONS: WorkshopDisposition[] = [
   'Drop',
   'Needs Validation',
   'Not Discussed',
+  'Parking Lot',
 ];
 
 export const ProjectBoard: React.FC<ProjectBoardProps> = ({
@@ -332,6 +333,8 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                   ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
                   : a.decision === 'Needs Validation'
                   ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                  : a.decision === 'Parking Lot'
+                  ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30'
                   : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
               }`}
             >

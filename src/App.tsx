@@ -205,6 +205,31 @@ export default function App() {
       }
     }
 
+    // Durable join-link (?join=<token>) — backed by PlanningSession.joinToken
+    // (survives a redeploy, unlike the ?share= code above) and enforces the
+    // workspace's per-session guest cap server-side.
+    const joinToken = params.get('join');
+    if (joinToken) {
+      try {
+        const res = await fetch(`/api/join/${encodeURIComponent(joinToken)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.project) {
+            setPendingSharePayload(data);
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState(null, '', cleanUrl);
+            return;
+          }
+        } else {
+          const body = await res.json().catch(() => ({}));
+          showToast(body.error || 'This invitation link is no longer valid.');
+        }
+      } catch (e) {
+        console.warn('Join API request failed:', e);
+        showToast('Could not reach the server to open this invitation link.');
+      }
+    }
+
     const pkgParam = params.get('pkg') || params.get('workshop');
     if (pkgParam) {
       const parsed = await parseShareHash(pkgParam);

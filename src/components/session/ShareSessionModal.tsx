@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Project, PlanningSession, Role, User, Card } from '../../types';
+import { Project, PlanningSession, Role, User, Card, WorkspacePlanStatus } from '../../types';
 import { authService } from '../../services/AuthService';
+import { persistenceService } from '../../services/PersistenceService';
 import { createShareHash } from '../../utils/shareBundle';
 import {
   Share2,
@@ -18,6 +19,7 @@ import {
   Radio,
   CheckCircle2,
   Globe,
+  Lock,
 } from 'lucide-react';
 
 interface ShareSessionModalProps {
@@ -51,8 +53,14 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedInviteText, setCopiedInviteText] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [planStatus, setPlanStatus] = useState<WorkspacePlanStatus | null>(null);
+  const [shareBlockedReason, setShareBlockedReason] = useState<string | null>(null);
 
   const activeSession = sessions.find((s) => s.id === selectedSessionId) || initialSession || sessions[0];
+
+  useEffect(() => {
+    persistenceService.getWorkspacePlan().then(setPlanStatus);
+  }, []);
 
   useEffect(() => {
     generateLink();
@@ -60,39 +68,32 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
 
   const generateLink = async () => {
     setIsGenerating(true);
+    setShareBlockedReason(null);
     try {
       const sess = activeSession || initialSession || sessions[0];
       if (!sess) return;
 
-      // Generate portable client-side compressed hash
+      // Generate portable client-side compressed hash — always available as
+      // a fallback, even if the durable share link below is blocked or fails.
       const hash = await createShareHash(project, sess, cards, selectedRole, currentUser.name);
       const directHashUrl = `${window.location.origin}/#workshop=${hash}`;
       setPortableHashLink(directHashUrl);
 
-      // Try server-backed short link
+      // Durable, trial/invite-limit-aware share link (backed by
+      // PlanningSession.joinToken — survives a redeploy, unlike the old
+      // in-memory /api/share code). Requires a signed-in account.
       try {
-        const resp = await fetch('/api/share', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project,
-            session: sess,
-            cards,
-            role: selectedRole,
-            invitedBy: currentUser.name,
-          }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.code) {
-            setInviteCode(data.code);
-            setInviteLink(`${window.location.origin}/?share=${data.code}`);
-            setIsGenerating(false);
-            return;
-          }
+        const { url } = await persistenceService.createSessionShareLink(sess.id);
+        setInviteCode('JOIN');
+        setInviteLink(`${window.location.origin}${url}`);
+        setIsGenerating(false);
+        return;
+      } catch (e: any) {
+        const message = e?.message || '';
+        if (message.toLowerCase().includes('trial')) {
+          setShareBlockedReason(message);
         }
-      } catch (e) {
-        console.warn('Server share API unavailable, using portable URL link', e);
+        console.warn('Durable share link unavailable, using portable URL link', e);
       }
 
       // Default to direct portable hash URL
@@ -304,6 +305,33 @@ Please open the link to join our live session, review workstream deliverables, a
             <strong>Cross-Device Live Access:</strong> Anyone opening this link will immediately see this exact project (<strong className="text-white">{project.name}</strong>), all its workstream tracks, and all imported deliverable cards.
           </p>
         </div>
+
+        {/* Plan / trial / invite-limit status */}
+        {planStatus && (
+          <div className="p-3 rounded-xl bg-[#181920] border border-[#252836] text-xs text-stone-300 flex items-start gap-2.5">
+            <Users className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong className="text-white">{planStatus.planTier} Plan</strong> &bull; up to{' '}
+              <strong className="text-white">{planStatus.maxSessionGuests} guests</strong> per session.
+              {planStatus.planTier === 'Basic' && (
+                planStatus.trialActive ? (
+                  <> Free trial: <strong className="text-[#fcd34d]">{planStatus.trialDaysRemaining} day{planStatus.trialDaysRemaining === 1 ? '' : 's'} left</strong> to share sessions.</>
+                ) : (
+                  <> Your <strong className="text-rose-400">free trial has ended</strong> — upgrade to Pro to keep sharing sessions.</>
+                )
+              )}
+            </p>
+          </div>
+        )}
+
+        {shareBlockedReason && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2.5">
+            <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              {shareBlockedReason} Using a one-time portable link below instead — it works, but won't track guest joins or respect the session guest limit.
+            </p>
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="pt-2 flex items-center justify-between border-t border-[#1f222c]">

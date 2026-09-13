@@ -63,6 +63,7 @@ enum WorkshopDisposition {
   Drop
   NeedsValidation
   NotDiscussed
+  ParkingLot
 }
 
 enum SessionStage {
@@ -79,6 +80,18 @@ enum FollowUpStatus {
   completed
 }
 
+// Monetization tiers (added when scoping the free-trial + invite-limit
+// logic). Basic is the free tier: invites/share-links only work during the
+// trial window below. Pro/Enterprise are unlimited-duration — there's no
+// self-serve upgrade flow yet (no Clerk Billing wiring), so moving a
+// workspace to Pro/Enterprise today is a manual planTier update, same as
+// every other "needs Britto directly" item already flagged in this project.
+enum PlanTier {
+  Basic
+  Pro
+  Enterprise
+}
+
 model Workspace {
   id                     String    @id @default(cuid())
   name                   String
@@ -87,6 +100,17 @@ model Workspace {
   requireEmailVerification Boolean @default(false)
   defaultRole            Role      @default(contributor)
   createdAt              DateTime  @default(now())
+
+  // --- Plan / trial / invite-limit fields ---------------------------------
+  // trialStartedAt defaults to workspace-creation time; the trial window
+  // length (3 weeks, per Britto) is enforced in code (api.js), not here, so
+  // it can change without a migration. maxSessionGuests is the per-session
+  // guest-join cap (25, per Britto's "keep it from getting cluttered") —
+  // it lives on the workspace (not hardcoded) so Pro/Enterprise can be given
+  // a higher ceiling later without another schema change.
+  planTier               PlanTier  @default(Basic)
+  trialStartedAt         DateTime  @default(now())
+  maxSessionGuests       Int       @default(25)
 
   users    User[]
   projects Project[]
@@ -208,6 +232,14 @@ model PlanningSession {
   // Server-issued, time-limited token guests use to join without an account.
   joinToken       String?      @unique
   joinTokenExpiresAt DateTime?
+  // Counts join-link opens against the workspace's maxSessionGuests cap.
+  // This counts join EVENTS, not verified unique humans — guests have no
+  // account, so there's no real identity to dedupe against (a guest
+  // reopening the link, e.g. after a refresh, counts again). Good enough
+  // for the stated goal ("don't let a room get too cluttered"); a precise
+  // per-person cap would need guests to carry a persisted device/browser id,
+  // which is a bigger follow-up, not part of this pass.
+  guestJoinCount  Int          @default(0)
 
   assessments SessionAssessment[]
   actions     FollowUpAction[]

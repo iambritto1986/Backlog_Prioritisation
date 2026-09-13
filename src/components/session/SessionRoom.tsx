@@ -1297,6 +1297,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
                 <option value="Defer">Defer</option>
                 <option value="Needs Validation">Needs Validation</option>
                 <option value="Not Discussed">Not Discussed</option>
+                <option value="Parking Lot">Parking Lot</option>
               </select>
             </div>
           </div>
@@ -1372,6 +1373,8 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
                             ? 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                             : a?.decision === 'Needs Validation'
                             ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30'
+                            : a?.decision === 'Parking Lot'
+                            ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30'
                             : 'bg-stone-100 dark:bg-stone-800 text-stone-400'
                         }`}>
                           {a?.decision || 'Not Discussed'}
@@ -1494,6 +1497,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
                     <option value="Drop">Drop</option>
                     <option value="Needs Validation">Needs Validation</option>
                     <option value="Not Discussed">Not Discussed</option>
+                    <option value="Parking Lot">Parking Lot</option>
                   </select>
                 </div>
 

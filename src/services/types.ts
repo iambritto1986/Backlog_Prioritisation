@@ -12,6 +12,7 @@ import {
   VersionSnapshot,
   Role,
   Workstream,
+  WorkspacePlanStatus,
 } from '../types';
 
 export interface IAuthService {
@@ -71,6 +72,16 @@ export interface IPersistenceService {
 
   applyAgreedToProject(sessionId: string, appliedBy: string): Promise<{ updatedCount: number; message: string }>;
   resetToDefaults(): Promise<void>;
+
+  deleteProject(id: string): Promise<void>;
+  getAllSessionComments(sessionId: string): Promise<CardComment[]>;
+
+  // Plan/trial/invite-limit status (real backend only — see
+  // PersistenceService's dual local/API design). Returns null when the
+  // caller isn't signed in with a real account (guests) or the backend is
+  // unreachable, so callers must treat a null return as "don't show limits".
+  getWorkspacePlan(): Promise<WorkspacePlanStatus | null>;
+  createSessionShareLink(sessionId: string): Promise<{ token: string; url: string; expiresAt: string }>;
 }
 
 export interface IPresenceService {

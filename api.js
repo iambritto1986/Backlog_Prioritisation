@@ -36,12 +36,34 @@ export const apiRouter = Router();
 // enum labels can't contain spaces, so the schema declares them
 // 'NeedsValidation' / 'NotDiscussed'. These two functions are the only
 // enum translation this API needs.
-const DISPOSITION_TO_DB = { 'Needs Validation': 'NeedsValidation', 'Not Discussed': 'NotDiscussed' };
-const DISPOSITION_FROM_DB = { NeedsValidation: 'Needs Validation', NotDiscussed: 'Not Discussed' };
+const DISPOSITION_TO_DB = { 'Needs Validation': 'NeedsValidation', 'Not Discussed': 'NotDiscussed', 'Parking Lot': 'ParkingLot' };
+const DISPOSITION_FROM_DB = { NeedsValidation: 'Needs Validation', NotDiscussed: 'Not Discussed', ParkingLot: 'Parking Lot' };
 const toDbDisposition = (v) => DISPOSITION_TO_DB[v] || v;
 const fromDbDisposition = (v) => DISPOSITION_FROM_DB[v] || v;
 
 const iso = (d) => (d ? new Date(d).toISOString() : undefined);
+
+// ---------------------------------------------------------------------------
+// Plan / trial / invite-limit logic
+// ---------------------------------------------------------------------------
+// Basic (free) workspaces can create session share links for 3 weeks from
+// workspace creation; Pro/Enterprise have no trial ceiling. The 25-guest
+// per-session cap (workspace.maxSessionGuests) applies regardless of tier —
+// it's a room-size/clutter guard as much as a monetization lever.
+const TRIAL_DAYS = 21;
+
+function trialInfo(workspace) {
+  const startedAt = new Date(workspace.trialStartedAt);
+  const daysElapsed = (Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24);
+  const trialDaysRemaining = Math.max(0, Math.ceil(TRIAL_DAYS - daysElapsed));
+  const trialActive = daysElapsed < TRIAL_DAYS;
+  return { trialDaysRemaining, trialActive };
+}
+
+function canCreateInvite(workspace) {
+  if (workspace.planTier !== 'Basic') return true;
+  return trialInfo(workspace).trialActive;
+}
 
 // ---------------------------------------------------------------------------
 // Serialization — Prisma rows -> the exact shapes src/types.ts expects
@@ -310,6 +332,27 @@ apiRouter.get('/projects', async (req, res, next) => {
   }
 });
 
+// Plan/trial/invite-limit status for the signed-in user's workspace — the
+// frontend (ShareSessionModal) uses this to show "X of 25 invites used" /
+// "trial ends in N days" instead of the limits only ever showing up as a
+// surprise 403.
+apiRouter.get('/workspace/plan', async (req, res, next) => {
+  try {
+    const workspace = await getOrCreateWorkspace();
+    const { trialDaysRemaining, trialActive } = trialInfo(workspace);
+    res.json({
+      planTier: workspace.planTier,
+      trialStartedAt: iso(workspace.trialStartedAt),
+      trialDaysRemaining,
+      trialActive,
+      maxSessionGuests: workspace.maxSessionGuests,
+      canInvite: canCreateInvite(workspace),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 apiRouter.get('/projects/:id', async (req, res, next) => {
   try {
     const project = await prisma.project.findUnique({
@@ -359,6 +402,21 @@ apiRouter.post('/projects', async (req, res, next) => {
       include: { workstreams: true },
     });
     res.json(serializeProject(full));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Not part of a stated v1 feature (no "delete project" button exists yet
+// today's UI), but IPersistenceService/PersistenceService.ts already declares
+// deleteProject and App.tsx already calls it — this was simply missing from
+// the initial /api/db build. Cascades to workstreams/sessions/cards (and
+// their own assessments/actions/comments/logs) via the schema's existing
+// onDelete: Cascade relations.
+apiRouter.delete('/projects/:id', async (req, res, next) => {
+  try {
+    await prisma.project.delete({ where: { id: req.params.id } }).catch(() => {});
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
@@ -761,6 +819,15 @@ apiRouter.post('/sessions/:id/share', async (req, res, next) => {
     const session = await prisma.planningSession.findUnique({ where: { id: req.params.id } });
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
+    const workspace = await getOrCreateWorkspace();
+    if (!canCreateInvite(workspace)) {
+      return res.status(403).json({
+        error: 'Your free trial has ended. Upgrade to Pro to keep sharing sessions.',
+        planTier: workspace.planTier,
+        trialActive: false,
+      });
+    }
+
     const token = crypto.randomBytes(9).toString('base64url'); // short, URL-safe
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
     await prisma.planningSession.update({
@@ -788,7 +855,7 @@ const assessmentInput = z.object({
   storyPoints: z.number().int().optional().nullable(),
   workstreamRank: z.number().int().optional().nullable(),
   decision: z
-    .enum(['Selected', 'Reserve', 'Defer', 'Drop', 'Needs Validation', 'Not Discussed'])
+    .enum(['Selected', 'Reserve', 'Defer', 'Drop', 'Needs Validation', 'Not Discussed', 'Parking Lot'])
     .default('Not Discussed'),
   milestoneOutcome: z.string().optional().nullable(),
   teamRationale: z.string().optional().nullable(),
@@ -939,6 +1006,22 @@ const commentInput = z.object({
   content: z.string().min(1),
   parentId: z.string().optional().nullable(),
   isImported: z.boolean().default(false),
+});
+
+// All comments across every card in a session (mirrors
+// getAllSessionComments, used by the session close-out export, which needs
+// the full discussion record, not just one card's thread).
+apiRouter.get('/sessions/:id/comments', async (req, res, next) => {
+  try {
+    const rows = await prisma.cardComment.findMany({
+      where: { sessionId: req.params.id },
+      include: { author: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json(rows.map(serializeComment));
+  } catch (err) {
+    next(err);
+  }
 });
 
 apiRouter.get('/sessions/:id/cards/:cardId/comments', async (req, res, next) => {
@@ -1113,6 +1196,21 @@ joinRouter.get('/join/:token', async (req, res, next) => {
     if (!session || (session.joinTokenExpiresAt && session.joinTokenExpiresAt < new Date())) {
       return res.status(404).json({ error: 'Invitation link not found or expired' });
     }
+
+    // Enforce the per-session guest cap (default 25 — see Workspace.maxSessionGuests).
+    // Counts join-link opens, not verified unique people (see the schema
+    // comment on guestJoinCount) — a reasonable v1 given guests have no account.
+    const workspace = await getOrCreateWorkspace();
+    if (session.guestJoinCount >= workspace.maxSessionGuests) {
+      return res.status(403).json({
+        error: `This session has reached its ${workspace.maxSessionGuests}-guest limit.`,
+      });
+    }
+    await prisma.planningSession.update({
+      where: { id: session.id },
+      data: { guestJoinCount: { increment: 1 } },
+    });
+
     const cards = await prisma.card.findMany({
       where: { projectId: session.projectId },
       include: { workstream: true },
@@ -1121,6 +1219,8 @@ joinRouter.get('/join/:token', async (req, res, next) => {
       project: serializeProject(session.project),
       session: serializeSession(session),
       cards: cards.map(serializeCard),
+      guestsJoined: session.guestJoinCount + 1,
+      maxSessionGuests: workspace.maxSessionGuests,
     });
   } catch (err) {
     next(err);

@@ -8,6 +8,7 @@ import {
   ActivityLog,
   VersionSnapshot,
   Workstream,
+  WorkspacePlanStatus,
 } from '../types';
 import { IPersistenceService } from './types';
 import {
@@ -29,23 +30,32 @@ const STORAGE_KEYS = {
   LOGS: 'pp_logs_v1',
 };
 
-export class PersistenceService implements IPersistenceService {
-  constructor() {
-    this.ensureInitialized();
-  }
-
-  private ensureInitialized() {
-    if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
-      this.resetToDefaults();
-    }
-  }
-
+// ---------------------------------------------------------------------------
+// LocalPersistenceService — the original, unchanged localStorage
+// implementation. Kept as-is (not deleted) for two reasons:
+//
+// 1. Guest fallback. Session guests join via a link with no Clerk account
+//    (see api.js's comments on why /api/db requires requireAuth()), so they
+//    can't write to the real backend at all today. Before this migration,
+//    EVERY browser (facilitator or guest) persisted locally and synced peers
+//    via Socket.IO — that's how guests have always worked. Flipping
+//    everything to the API unconditionally would silently break guest
+//    writes (votes, comments, assessments) the moment this ships. Wiring a
+//    real guest identity into the backend (a lightweight guest User row,
+//    validated against the session's joinToken instead of a Clerk session)
+//    is a real follow-up, not something to rush into this pass — so guests
+//    keep exactly today's behavior via this class.
+// 2. Safety net. If the real API ever fails (network hiccup, DB not
+//    configured yet on a fresh deploy — see db.js's prisma-null fallback),
+//    ApiPersistenceService calls fall back to this instead of losing the
+//    write entirely.
+// ---------------------------------------------------------------------------
+class LocalPersistenceService implements IPersistenceService {
   async resetToDefaults(): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(SEED_PROJECTS));
     localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(SEED_CARDS));
     localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(SEED_SESSIONS));
 
-    // Convert assessments array to record keyed by `${sessionId}:${cardId}`
     const assessMap: Record<string, SessionAssessment> = {};
     SEED_ASSESSMENTS.forEach((a) => {
       assessMap[`${a.sessionId}:${a.cardId}`] = a;
@@ -84,7 +94,6 @@ export class PersistenceService implements IPersistenceService {
     const updatedProjects = projects.filter((p) => p.id !== id);
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updatedProjects));
 
-    // Clean up associated cards
     const rawCards = localStorage.getItem(STORAGE_KEYS.CARDS);
     if (rawCards) {
       const allCards: Card[] = JSON.parse(rawCards);
@@ -92,7 +101,6 @@ export class PersistenceService implements IPersistenceService {
       localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(remainingCards));
     }
 
-    // Clean up associated sessions
     const rawSessions = localStorage.getItem(STORAGE_KEYS.SESSIONS);
     if (rawSessions) {
       const allSessions: PlanningSession[] = JSON.parse(rawSessions);
@@ -129,7 +137,6 @@ export class PersistenceService implements IPersistenceService {
   async replaceCardsForProject(projectId: string, newCards: Card[]): Promise<void> {
     const raw = localStorage.getItem(STORAGE_KEYS.CARDS);
     const existing: Card[] = raw ? JSON.parse(raw) : [];
-    // Remove all previous cards belonging to this project
     const otherCards = existing.filter((c) => c.projectId !== projectId);
     const combined = [...otherCards, ...newCards];
     localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(combined));
@@ -171,7 +178,6 @@ export class PersistenceService implements IPersistenceService {
       localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(filtered));
     }
 
-    // Clean up associated assessments
     const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
     if (rawAssess) {
       const map: Record<string, SessionAssessment> = JSON.parse(rawAssess);
@@ -219,7 +225,6 @@ export class PersistenceService implements IPersistenceService {
       localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(filtered));
     }
 
-    // Cascade delete assessments for this session
     const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
     if (rawAssess) {
       const map: Record<string, SessionAssessment> = JSON.parse(rawAssess);
@@ -232,7 +237,6 @@ export class PersistenceService implements IPersistenceService {
       localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(updatedMap));
     }
 
-    // Cascade delete actions for this session
     const rawActions = localStorage.getItem(STORAGE_KEYS.ACTIONS);
     if (rawActions) {
       const all: FollowUpAction[] = JSON.parse(rawActions);
@@ -242,7 +246,6 @@ export class PersistenceService implements IPersistenceService {
       );
     }
 
-    // Cascade delete comments for this session
     const rawComms = localStorage.getItem(STORAGE_KEYS.COMMENTS);
     if (rawComms) {
       const all: CardComment[] = JSON.parse(rawComms);
@@ -252,7 +255,6 @@ export class PersistenceService implements IPersistenceService {
       );
     }
 
-    // Cascade delete logs for this session
     const rawLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
     if (rawLogs) {
       const all: ActivityLog[] = JSON.parse(rawLogs);
@@ -281,7 +283,6 @@ export class PersistenceService implements IPersistenceService {
 
     await this.saveSession(duplicated);
 
-    // Duplicate assessments
     const existingAssessments = await this.getAssessments(sessionId);
     const rawAssess = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
     const assessMap: Record<string, SessionAssessment> = rawAssess ? JSON.parse(rawAssess) : {};
@@ -395,7 +396,6 @@ export class PersistenceService implements IPersistenceService {
     const key = `${assessment.sessionId}:${assessment.cardId}`;
     const existing = map[key];
 
-    // Conflict detection: if existing version is greater than incoming base version, detect conflict!
     if (existing && existing.version > assessment.version) {
       return {
         success: false,
@@ -403,7 +403,6 @@ export class PersistenceService implements IPersistenceService {
       };
     }
 
-    // Bump version
     const updated: SessionAssessment = {
       ...assessment,
       version: (existing?.version || 0) + 1,
@@ -419,12 +418,6 @@ export class PersistenceService implements IPersistenceService {
     };
   }
 
-  // Applies an assessment that arrived from a peer via live sync
-  // (PresenceService `entity_sync`). The sender already ran it through
-  // saveAssessment and resolved conflicts on their end, so this just mirrors
-  // their exact result locally — no re-bumping the version, no re-running
-  // conflict detection. The only guard: never let an out-of-order/late
-  // message clobber a newer value this browser already has.
   async applyAssessmentSync(assessment: SessionAssessment): Promise<void> {
     const raw = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
     const map: Record<string, SessionAssessment> = raw ? JSON.parse(raw) : {};
@@ -437,8 +430,6 @@ export class PersistenceService implements IPersistenceService {
     localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(map));
   }
 
-  // Applies a comment that arrived from a peer via live sync. Comments don't
-  // carry a version, so this is a plain idempotent upsert-by-id.
   async applyCommentSync(comment: CardComment): Promise<void> {
     const raw = localStorage.getItem(STORAGE_KEYS.COMMENTS);
     const all: CardComment[] = raw ? JSON.parse(raw) : [];
@@ -486,11 +477,6 @@ export class PersistenceService implements IPersistenceService {
     return all.filter((c) => c.sessionId === sessionId);
   }
 
-  async getAllComments(): Promise<CardComment[]> {
-    const raw = localStorage.getItem(STORAGE_KEYS.COMMENTS);
-    return raw ? JSON.parse(raw) : [];
-  }
-
   async addComment(commentData: Omit<CardComment, 'id' | 'createdAt'>): Promise<CardComment> {
     const raw = localStorage.getItem(STORAGE_KEYS.COMMENTS);
     const all: CardComment[] = raw ? JSON.parse(raw) : [];
@@ -520,11 +506,10 @@ export class PersistenceService implements IPersistenceService {
       timestamp: new Date().toISOString(),
     };
     all.unshift(entry);
-    // Keep max 200 logs
     localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(all.slice(0, 200)));
   }
 
-  // APPLY AGREED TO PROJECT (PRD Section 8 & 11)
+  // APPLY AGREED TO PROJECT
   async applyAgreedToProject(
     sessionId: string,
     appliedBy: string
@@ -543,7 +528,6 @@ export class PersistenceService implements IPersistenceService {
       let changed = false;
       const cardCopy = { ...card };
 
-      // If proposed priority is set and not unprioritized, apply to card
       if (assessment.proposedPriority && assessment.proposedPriority !== 'Unprioritized') {
         if (cardCopy.currentPriority !== assessment.proposedPriority) {
           cardCopy.currentPriority = assessment.proposedPriority;
@@ -551,7 +535,6 @@ export class PersistenceService implements IPersistenceService {
         }
       }
 
-      // If workshop decision is Selected and milestone target is defined, update target
       if (assessment.milestoneOutcome && assessment.milestoneOutcome.trim() !== '') {
         cardCopy.targetDateOrQuarter = assessment.milestoneOutcome;
         changed = true;
@@ -578,6 +561,468 @@ export class PersistenceService implements IPersistenceService {
       updatedCount,
       message: `Successfully applied agreed priorities and targets to ${updatedCount} cards in project backlog.`,
     };
+  }
+
+  // Real-backend-only concepts: no-ops here so the dispatcher below can call
+  // them unconditionally without a guest ever hitting a "not implemented".
+  async getWorkspacePlan(): Promise<WorkspacePlanStatus | null> {
+    return null;
+  }
+
+  async createSessionShareLink(_sessionId: string): Promise<{ token: string; url: string; expiresAt: string }> {
+    throw new Error('Durable share links require a signed-in account.');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ApiPersistenceService — talks to the real /api/db backend (api.js /
+// prisma/schema.prisma). Same-origin fetch calls carry the browser's Clerk
+// session cookie automatically, so no auth header wiring is needed here.
+// ---------------------------------------------------------------------------
+async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`/api/db${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      message = body.error || message;
+    } catch {
+      // response wasn't JSON — keep the generic message
+    }
+    throw new Error(message);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+const j = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
+const put = (body: unknown): RequestInit => ({ method: 'PUT', body: JSON.stringify(body) });
+
+function groupByProjectId(cards: Card[]): Map<string, Card[]> {
+  const groups = new Map<string, Card[]>();
+  cards.forEach((c) => {
+    const list = groups.get(c.projectId) || [];
+    list.push(c);
+    groups.set(c.projectId, list);
+  });
+  return groups;
+}
+
+class ApiPersistenceService implements IPersistenceService {
+  async resetToDefaults(): Promise<void> {
+    // No-op against the real backend — App.tsx's own "seed if empty" logic
+    // (calling saveProject/saveCards/saveSession directly) already handles
+    // first-run, and there's no browser-local cache here to reset.
+  }
+
+  // PROJECTS
+  async getProjects(): Promise<Project[]> {
+    return apiFetch('/projects');
+  }
+
+  async getProject(id: string): Promise<Project | null> {
+    try {
+      return await apiFetch(`/projects/${id}`);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveProject(project: Project): Promise<void> {
+    await apiFetch('/projects', j(project));
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await apiFetch(`/projects/${id}`, { method: 'DELETE' });
+  }
+
+  // CARDS
+  async getCards(projectId: string): Promise<Card[]> {
+    return apiFetch(`/projects/${projectId}/cards`);
+  }
+
+  async getCard(id: string): Promise<Card | null> {
+    try {
+      return await apiFetch(`/cards/${id}`);
+    } catch {
+      return null;
+    }
+  }
+
+  // Upserts (mirrors the localStorage version's semantics). Cards can belong
+  // to different projects in one call (e.g. first-run seeding), and the bulk
+  // endpoint is nested under one project, so group and call it once per
+  // project represented in the batch.
+  async saveCards(cards: Card[]): Promise<void> {
+    const groups = groupByProjectId(cards);
+    for (const [projectId, groupCards] of groups) {
+      await apiFetch(`/projects/${projectId}/cards/bulk`, j(groupCards));
+    }
+  }
+
+  async replaceCardsForProject(projectId: string, cards: Card[]): Promise<void> {
+    await apiFetch(`/projects/${projectId}/cards/replace`, put(cards));
+  }
+
+  async clearCardsForProject(projectId: string): Promise<void> {
+    await apiFetch(`/projects/${projectId}/cards`, { method: 'DELETE' });
+  }
+
+  async saveCard(card: Card): Promise<void> {
+    await this.saveCards([card]);
+  }
+
+  async updateCard(card: Card): Promise<void> {
+    await this.saveCards([card]);
+  }
+
+  async createCard(card: Card): Promise<Card> {
+    return apiFetch(`/projects/${card.projectId}/cards`, j(card));
+  }
+
+  async deleteCard(id: string): Promise<void> {
+    await apiFetch(`/cards/${id}`, { method: 'DELETE' });
+  }
+
+  // SESSIONS
+  async getSessions(projectId?: string): Promise<PlanningSession[]> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    return apiFetch(`/sessions${qs}`);
+  }
+
+  async getSession(id: string): Promise<PlanningSession | null> {
+    try {
+      return await apiFetch(`/sessions/${id}`);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSession(session: PlanningSession): Promise<void> {
+    await apiFetch('/sessions', j(session));
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await apiFetch(`/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
+  async duplicateSession(sessionId: string): Promise<PlanningSession> {
+    return apiFetch(`/sessions/${sessionId}/duplicate`, j({}));
+  }
+
+  async closeSession(sessionId: string, closedBy: string, summary: string): Promise<VersionSnapshot> {
+    return apiFetch(`/sessions/${sessionId}/close`, j({ closedBy, summary }));
+  }
+
+  async reopenSession(sessionId: string): Promise<PlanningSession> {
+    return apiFetch(`/sessions/${sessionId}/reopen`, j({}));
+  }
+
+  // WORKSTREAMS
+  async deleteWorkstream(projectId: string, workstreamId: string): Promise<void> {
+    await apiFetch(`/projects/${projectId}/workstreams/${workstreamId}`, { method: 'DELETE' });
+  }
+
+  async updateWorkstream(projectId: string, workstream: Workstream): Promise<void> {
+    await apiFetch(`/projects/${projectId}/workstreams/${workstream.id}`, put(workstream));
+  }
+
+  // ASSESSMENTS
+  async getAssessments(sessionId: string): Promise<Record<string, SessionAssessment>> {
+    return apiFetch(`/sessions/${sessionId}/assessments`);
+  }
+
+  async getAssessment(sessionId: string, cardId: string): Promise<SessionAssessment | null> {
+    return apiFetch(`/sessions/${sessionId}/assessments/${cardId}`);
+  }
+
+  async saveAssessment(
+    assessment: SessionAssessment
+  ): Promise<{ success: boolean; conflict?: SessionAssessment; saved?: SessionAssessment }> {
+    return apiFetch(
+      `/sessions/${assessment.sessionId}/assessments/${assessment.cardId}`,
+      put(assessment)
+    );
+  }
+
+  async applyAssessmentSync(assessment: SessionAssessment): Promise<void> {
+    await apiFetch(
+      `/sessions/${assessment.sessionId}/assessments/${assessment.cardId}/sync`,
+      j(assessment)
+    );
+  }
+
+  // ACTIONS
+  async getActions(sessionId: string): Promise<FollowUpAction[]> {
+    return apiFetch(`/sessions/${sessionId}/actions`);
+  }
+
+  async saveAction(action: FollowUpAction): Promise<void> {
+    await apiFetch(`/sessions/${action.sessionId}/actions`, j(action));
+  }
+
+  async deleteAction(id: string): Promise<void> {
+    await apiFetch(`/actions/${id}`, { method: 'DELETE' });
+  }
+
+  // COMMENTS
+  async getComments(sessionId: string, cardId: string): Promise<CardComment[]> {
+    return apiFetch(`/sessions/${sessionId}/cards/${cardId}/comments`);
+  }
+
+  async getAllSessionComments(sessionId: string): Promise<CardComment[]> {
+    return apiFetch(`/sessions/${sessionId}/comments`);
+  }
+
+  async addComment(commentData: Omit<CardComment, 'id' | 'createdAt'>): Promise<CardComment> {
+    return apiFetch(`/sessions/${commentData.sessionId}/cards/${commentData.cardId}/comments`, j(commentData));
+  }
+
+  async applyCommentSync(comment: CardComment): Promise<void> {
+    await apiFetch(`/sessions/${comment.sessionId}/comments/sync`, j(comment));
+  }
+
+  // LOGS
+  async getActivityLogs(sessionId: string): Promise<ActivityLog[]> {
+    return apiFetch(`/sessions/${sessionId}/activity`);
+  }
+
+  async logActivity(logData: Omit<ActivityLog, 'id' | 'timestamp'>): Promise<void> {
+    await apiFetch(`/sessions/${logData.sessionId}/activity`, j(logData));
+  }
+
+  // APPLY AGREED TO PROJECT
+  async applyAgreedToProject(
+    sessionId: string,
+    appliedBy: string
+  ): Promise<{ updatedCount: number; message: string }> {
+    return apiFetch(`/sessions/${sessionId}/apply-agreed`, j({ appliedBy }));
+  }
+
+  // PLAN / TRIAL / INVITE LIMIT
+  async getWorkspacePlan(): Promise<WorkspacePlanStatus | null> {
+    try {
+      return await apiFetch('/workspace/plan');
+    } catch {
+      return null;
+    }
+  }
+
+  async createSessionShareLink(sessionId: string): Promise<{ token: string; url: string; expiresAt: string }> {
+    return apiFetch(`/sessions/${sessionId}/share`, j({}));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PersistenceService — the public singleton every component imports.
+//
+// Dispatches between the two implementations above based on whether the
+// browser currently has a real, signed-in Clerk session:
+//   - Signed-in (facilitator / team member): real backend, with a fallback
+//     to localStorage if the API call throws (network hiccup, or the DB
+//     genuinely isn't configured yet on a fresh deploy).
+//   - Not signed in (a session guest, joined via link): localStorage, same
+//     as every browser did before this migration — see the comment on
+//     LocalPersistenceService for why guests aren't switched over yet.
+//
+// `window.Clerk?.session` is the standard way to check Clerk auth state
+// synchronously outside of a React component (this class is a plain
+// singleton, not a hook) — Clerk's SDK sets it once ClerkProvider has
+// initialized.
+// ---------------------------------------------------------------------------
+declare global {
+  interface Window {
+    Clerk?: { session?: unknown };
+  }
+}
+
+function isSignedIn(): boolean {
+  try {
+    return typeof window !== 'undefined' && !!window.Clerk?.session;
+  } catch {
+    return false;
+  }
+}
+
+export class PersistenceService implements IPersistenceService {
+  private local = new LocalPersistenceService();
+  private api = new ApiPersistenceService();
+
+  constructor() {
+    // Unlike the old localStorage-only service, this no longer auto-seeds on
+    // construction (there's no synchronous "is storage empty?" check that
+    // makes sense against a network backend). App.tsx's initApp() already
+    // seeds explicitly when getProjects() comes back empty.
+  }
+
+  private async withFallback<T>(
+    op: (svc: IPersistenceService) => Promise<T>,
+    label: string
+  ): Promise<T> {
+    if (!isSignedIn()) {
+      return op(this.local);
+    }
+    try {
+      return await op(this.api);
+    } catch (err) {
+      console.warn(`[PersistenceService] ${label} failed against the real backend, falling back to local storage:`, err);
+      return op(this.local);
+    }
+  }
+
+  async resetToDefaults(): Promise<void> {
+    return this.withFallback((s) => s.resetToDefaults(), 'resetToDefaults');
+  }
+
+  // PROJECTS
+  async getProjects(): Promise<Project[]> {
+    return this.withFallback((s) => s.getProjects(), 'getProjects');
+  }
+  async getProject(id: string): Promise<Project | null> {
+    return this.withFallback((s) => s.getProject(id), 'getProject');
+  }
+  async saveProject(project: Project): Promise<void> {
+    return this.withFallback((s) => s.saveProject(project), 'saveProject');
+  }
+  async deleteProject(id: string): Promise<void> {
+    return this.withFallback((s) => s.deleteProject(id), 'deleteProject');
+  }
+
+  // CARDS
+  async getCards(projectId: string): Promise<Card[]> {
+    return this.withFallback((s) => s.getCards(projectId), 'getCards');
+  }
+  async getCard(id: string): Promise<Card | null> {
+    return this.withFallback((s) => s.getCard(id), 'getCard');
+  }
+  async saveCards(cards: Card[]): Promise<void> {
+    return this.withFallback((s) => s.saveCards(cards), 'saveCards');
+  }
+  async replaceCardsForProject(projectId: string, cards: Card[]): Promise<void> {
+    return this.withFallback((s) => s.replaceCardsForProject(projectId, cards), 'replaceCardsForProject');
+  }
+  async clearCardsForProject(projectId: string): Promise<void> {
+    return this.withFallback((s) => s.clearCardsForProject(projectId), 'clearCardsForProject');
+  }
+  async saveCard(card: Card): Promise<void> {
+    return this.withFallback((s) => s.saveCard(card), 'saveCard');
+  }
+  async updateCard(card: Card): Promise<void> {
+    return this.withFallback((s) => s.updateCard(card), 'updateCard');
+  }
+  async createCard(card: Card): Promise<Card> {
+    return this.withFallback((s) => s.createCard(card), 'createCard');
+  }
+  async deleteCard(id: string): Promise<void> {
+    return this.withFallback((s) => s.deleteCard(id), 'deleteCard');
+  }
+
+  // SESSIONS
+  async getSessions(projectId?: string): Promise<PlanningSession[]> {
+    return this.withFallback((s) => s.getSessions(projectId), 'getSessions');
+  }
+  async getSession(id: string): Promise<PlanningSession | null> {
+    return this.withFallback((s) => s.getSession(id), 'getSession');
+  }
+  async saveSession(session: PlanningSession): Promise<void> {
+    return this.withFallback((s) => s.saveSession(session), 'saveSession');
+  }
+  async deleteSession(sessionId: string): Promise<void> {
+    return this.withFallback((s) => s.deleteSession(sessionId), 'deleteSession');
+  }
+  async duplicateSession(sessionId: string): Promise<PlanningSession> {
+    return this.withFallback((s) => s.duplicateSession(sessionId), 'duplicateSession');
+  }
+  async closeSession(sessionId: string, closedBy: string, summary: string): Promise<VersionSnapshot> {
+    return this.withFallback((s) => s.closeSession(sessionId, closedBy, summary), 'closeSession');
+  }
+  async reopenSession(sessionId: string): Promise<PlanningSession> {
+    return this.withFallback((s) => s.reopenSession(sessionId), 'reopenSession');
+  }
+
+  // WORKSTREAMS
+  async deleteWorkstream(projectId: string, workstreamId: string): Promise<void> {
+    return this.withFallback((s) => s.deleteWorkstream(projectId, workstreamId), 'deleteWorkstream');
+  }
+  async updateWorkstream(projectId: string, workstream: Workstream): Promise<void> {
+    return this.withFallback((s) => s.updateWorkstream(projectId, workstream), 'updateWorkstream');
+  }
+
+  // ASSESSMENTS
+  async getAssessments(sessionId: string): Promise<Record<string, SessionAssessment>> {
+    return this.withFallback((s) => s.getAssessments(sessionId), 'getAssessments');
+  }
+  async getAssessment(sessionId: string, cardId: string): Promise<SessionAssessment | null> {
+    return this.withFallback((s) => s.getAssessment(sessionId, cardId), 'getAssessment');
+  }
+  async saveAssessment(
+    assessment: SessionAssessment
+  ): Promise<{ success: boolean; conflict?: SessionAssessment; saved?: SessionAssessment }> {
+    return this.withFallback((s) => s.saveAssessment(assessment), 'saveAssessment');
+  }
+  async applyAssessmentSync(assessment: SessionAssessment): Promise<void> {
+    return this.withFallback((s) => s.applyAssessmentSync(assessment), 'applyAssessmentSync');
+  }
+
+  // ACTIONS
+  async getActions(sessionId: string): Promise<FollowUpAction[]> {
+    return this.withFallback((s) => s.getActions(sessionId), 'getActions');
+  }
+  async saveAction(action: FollowUpAction): Promise<void> {
+    return this.withFallback((s) => s.saveAction(action), 'saveAction');
+  }
+  async deleteAction(id: string): Promise<void> {
+    return this.withFallback((s) => s.deleteAction(id), 'deleteAction');
+  }
+
+  // COMMENTS
+  async getComments(sessionId: string, cardId: string): Promise<CardComment[]> {
+    return this.withFallback((s) => s.getComments(sessionId, cardId), 'getComments');
+  }
+  async getAllSessionComments(sessionId: string): Promise<CardComment[]> {
+    return this.withFallback((s) => s.getAllSessionComments(sessionId), 'getAllSessionComments');
+  }
+  async addComment(commentData: Omit<CardComment, 'id' | 'createdAt'>): Promise<CardComment> {
+    return this.withFallback((s) => s.addComment(commentData), 'addComment');
+  }
+  async applyCommentSync(comment: CardComment): Promise<void> {
+    return this.withFallback((s) => s.applyCommentSync(comment), 'applyCommentSync');
+  }
+
+  // LOGS
+  async getActivityLogs(sessionId: string): Promise<ActivityLog[]> {
+    return this.withFallback((s) => s.getActivityLogs(sessionId), 'getActivityLogs');
+  }
+  async logActivity(logData: Omit<ActivityLog, 'id' | 'timestamp'>): Promise<void> {
+    return this.withFallback((s) => s.logActivity(logData), 'logActivity');
+  }
+
+  // APPLY AGREED TO PROJECT
+  async applyAgreedToProject(
+    sessionId: string,
+    appliedBy: string
+  ): Promise<{ updatedCount: number; message: string }> {
+    return this.withFallback((s) => s.applyAgreedToProject(sessionId, appliedBy), 'applyAgreedToProject');
+  }
+
+  // PLAN / TRIAL / INVITE LIMIT — real-backend-only; guests simply get null
+  // (no fallback to local, since the concept doesn't exist there).
+  async getWorkspacePlan(): Promise<WorkspacePlanStatus | null> {
+    if (!isSignedIn()) return null;
+    try {
+      return await this.api.getWorkspacePlan();
+    } catch {
+      return null;
+    }
+  }
+  async createSessionShareLink(sessionId: string): Promise<{ token: string; url: string; expiresAt: string }> {
+    if (!isSignedIn()) {
+      throw new Error('Sign in to create a durable share link.');
+    }
+    return this.api.createSessionShareLink(sessionId);
   }
 }
 

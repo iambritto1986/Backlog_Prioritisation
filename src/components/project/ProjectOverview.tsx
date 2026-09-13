@@ -379,6 +379,8 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             Needs Validation
           </span>
         );
+      case 'Parking Lot':
+        return <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-500/20 text-violet-400 border border-violet-500/40">Parking Lot</span>;
       default:
         return (
           <span className="px-2 py-0.5 rounded text-[11px] text-stone-400 bg-stone-100 dark:bg-stone-800">
@@ -795,7 +797,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
           {boardGroupBy === 'disposition' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {(['Selected', 'Reserve', 'Needs Validation', 'Not Discussed'] as const).map((disp) => {
+              {(['Selected', 'Reserve', 'Needs Validation', 'Parking Lot', 'Not Discussed'] as const).map((disp) => {
                 const columnCards = filteredCards.filter((c) => {
                   const a = assessmentsMap[c.id];
                   const d = a?.decision || 'Not Discussed';
