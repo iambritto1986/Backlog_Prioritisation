@@ -352,7 +352,7 @@ export default function App() {
   const projectCards = cards.filter((c) => c.projectId === (currentProject?.id || ''));
 
   return (
-    <div className={`min-h-screen bg-[#faf9f5] dark:bg-[#141518] text-stone-900 dark:text-stone-100 flex flex-col font-sans transition-colors ${isDarkTheme ? 'dark' : ''}`}>
+    <div className="min-h-screen bg-[#0b0c10] text-[#e5e7eb] flex flex-col font-sans selection:bg-[#d4af37]/30 selection:text-[#fcd34d]">
       {/* Global Application Header */}
       <AppHeader
         activeView={activeView}

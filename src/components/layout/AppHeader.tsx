@@ -1,28 +1,19 @@
 import React, { useState } from 'react';
 import {
-  Users,
+  Sparkles,
   CheckCircle2,
-  Moon,
-  Sun,
-  RotateCcw,
-  ShieldCheck,
   ChevronDown,
-  ExternalLink,
-  Layers,
   Radio,
   FileSpreadsheet,
   Menu,
   X,
-  FolderKanban,
-  Kanban,
-  CheckSquare,
-  Sparkles,
+  ShieldCheck,
+  RotateCcw,
   SlidersHorizontal,
-  HelpCircle,
-  Keyboard,
-  Database,
-  ChevronRight,
-  Compass,
+  Layers,
+  Kanban,
+  LayoutDashboard,
+  Award,
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
 import { authService } from '../../services/AuthService';
@@ -73,21 +64,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenVerification,
   onOpenChecklist,
   onResetData,
-  isDark,
-  isDarkTheme,
-  onToggleTheme,
   connectionStatus = 'saved',
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const availableUsers = authService.getAvailableUsers();
 
   const project = activeProject || currentProject || null;
   const session = activeSession || currentSession || null;
-  const darkActive = isDark ?? isDarkTheme ?? true;
 
-  // Resolve current active tab
   const currentTab: 'home' | 'project' | 'session' | 'board' | 'results' | 'import' =
     activeTab ||
     (activeView === 'home'
@@ -106,13 +91,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
   const handleNav = (target: 'home' | 'project' | 'session' | 'board' | 'results' | 'import') => {
     setShowMobileMenu(false);
-    if (onTabChange) {
-      try {
-        onTabChange(target);
-      } catch (e) {
-        console.error('Error in onTabChange:', e);
-      }
-    }
+    if (onTabChange) onTabChange(target);
     if (target === 'home' && onNavigateHome) onNavigateHome();
     else if (target === 'project' && onNavigateOverview) onNavigateOverview();
     else if (target === 'session' && onNavigateSession) onNavigateSession();
@@ -125,46 +104,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     if (onUserChange) onUserChange(user);
     if (onSwitchUser) onSwitchUser(user);
     setShowUserMenu(false);
-  };
-
-  const handleChecklistClick = () => {
-    setShowToolsMenu(false);
-    if (onOpenChecklist) onOpenChecklist();
-    if (onOpenVerification) onOpenVerification();
-  };
-
-  const getStatusBadge = () => {
-    switch (connectionStatus) {
-      case 'saving':
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            Saving...
-          </span>
-        );
-      case 'conflict':
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-            Conflict
-          </span>
-        );
-      case 'offline':
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-stone-800 text-stone-300 border border-stone-700">
-            <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
-            Offline
-          </span>
-        );
-      case 'saved':
-      default:
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Saved
-          </span>
-        );
-    }
   };
 
   const getRoleLabel = (role: Role) => {
@@ -185,239 +124,154 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="bg-[#121316] text-stone-100 border-b border-[#24262f] sticky top-0 z-50 select-none shadow-md">
-      {/* Top Navbar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-        {/* Left: AlignCraft Brand & Breadcrumbs */}
-        <div className="flex items-center gap-3 sm:gap-5">
-          {/* Mobile hamburger button */}
+    <header className="bg-[#0b0c10] text-stone-100 border-b border-[#1f222c] sticky top-0 z-50 select-none">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+        {/* Left: Brand Identity (ClaimCoda style) */}
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
             className="md:hidden p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
-            aria-label="Toggle navigation menu"
           >
             {showMobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          {/* Logo & Product Name */}
           <div
             onClick={() => handleNav('home')}
-            className="flex items-center gap-2.5 cursor-pointer group shrink-0"
+            className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#2a2c38] to-[#1c1d24] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] font-black tracking-wider text-sm shadow-sm group-hover:border-[#d4af37] group-hover:shadow-[#d4af37]/20 transition-all">
-              <Sparkles className="w-4 h-4 text-[#d4af37]" />
+            <div className="w-9 h-9 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] font-bold text-sm shadow-sm group-hover:border-[#d4af37] transition-all">
+              AC
             </div>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-sm tracking-tight text-white group-hover:text-[#fcd34d] transition-colors">
-                  AlignCraft
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.2 rounded bg-[#d4af37]/15 text-[#d4af37] border border-[#d4af37]/30">
-                  Studio
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-base tracking-tight text-[#e5e7eb] group-hover:text-[#fcd34d] transition-colors">
+                  AlignCraft Workspace
                 </span>
               </div>
-              <div className="text-[10px] text-stone-400 leading-none">
-                Product Planner & Backlog Prioritization
+              <div className="text-[11px] text-stone-400 font-medium">
+                Product Planner & Workshop Studio
               </div>
             </div>
-          </div>
-
-          {/* Smart Breadcrumb Trail */}
-          <div className="hidden lg:flex items-center gap-1.5 text-xs text-stone-400 border-l border-stone-800 pl-4">
-            <button
-              onClick={() => handleNav('home')}
-              className="hover:text-stone-200 transition-colors truncate max-w-[120px]"
-            >
-              Workspace
-            </button>
-            {project && (
-              <>
-                <ChevronRight className="w-3 h-3 text-stone-600 shrink-0" />
-                <button
-                  onClick={() => handleNav('project')}
-                  className={`hover:text-stone-200 transition-colors truncate max-w-[180px] font-medium ${
-                    currentTab === 'project' ? 'text-white font-semibold' : ''
-                  }`}
-                >
-                  {project.name}
-                </button>
-              </>
-            )}
-            {session && (currentTab === 'session' || currentTab === 'results') && (
-              <>
-                <ChevronRight className="w-3 h-3 text-stone-600 shrink-0" />
-                <span className="text-[#fcd34d] font-semibold truncate max-w-[190px]">
-                  {session.name}
-                </span>
-              </>
-            )}
           </div>
         </div>
 
-        {/* Center/Right: Desktop Nav Links */}
-        <nav className="hidden md:flex items-center gap-1">
+        {/* Center: Navigation Pills */}
+        <nav className="hidden md:flex items-center gap-1.5">
           <button
             onClick={() => handleNav('home')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
               currentTab === 'home'
-                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
             Workspace
           </button>
+
           <button
             onClick={() => handleNav('project')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
               currentTab === 'project'
-                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
-            Project Overview
+            Project
           </button>
+
           <button
             onClick={() => handleNav('board')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
               currentTab === 'board'
-                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
-            Working Board
+            Board
           </button>
+
           <button
             onClick={() => handleNav('session')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
               currentTab === 'session'
-                ? 'bg-[#22242e] text-[#fcd34d] shadow-xs border border-[#d4af37]/40'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
-            <Radio className="w-3.5 h-3.5 text-[#d4af37]" />
+            <Radio className="w-3 h-3 text-[#fcd34d]" />
             Session Room
             {session && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             )}
           </button>
+
           <button
             onClick={() => handleNav('results')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
               currentTab === 'results'
-                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
-            Results & Exports
+            Results
           </button>
+
           <button
             onClick={() => handleNav('import')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
               currentTab === 'import'
-                ? 'bg-[#22242e] text-white shadow-xs border border-stone-700'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
+                ? 'bg-[#d4af37] text-neutral-950 shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                : 'bg-[#14161f] text-stone-300 hover:text-white hover:bg-[#1c1f2b] border border-[#252836]'
             }`}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
+            <FileSpreadsheet className="w-3 h-3 text-[#d4af37]" />
             Import Excel
           </button>
         </nav>
 
-        {/* Far Right: Tools, Persona Switcher & Theme */}
+        {/* Right: Persona Switcher & Actions */}
         <div className="flex items-center gap-2.5">
-          {/* Status Badge */}
-          <div className="hidden sm:block">{getStatusBadge()}</div>
+          {/* PRD Verification Pill */}
+          <button
+            onClick={() => {
+              if (onOpenChecklist) onOpenChecklist();
+              if (onOpenVerification) onOpenVerification();
+            }}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#14161f] hover:bg-[#1c1f2b] border border-[#252836] hover:border-[#d4af37]/50 text-xs font-semibold text-stone-300 hover:text-white transition-all shadow-xs"
+            title="Open PRD Verification & Acceptance Checklist"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[#d4af37]" />
+            <span>PRD Verification</span>
+          </button>
 
-          {/* Settings & Diagnostics Dropdown Trigger */}
-          <div className="relative">
-            <button
-              onClick={() => setShowToolsMenu(!showToolsMenu)}
-              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 transition-colors"
-              title="Settings, Diagnostics & PRD Verification"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
-
-            {showToolsMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-[#1c1e26] border border-stone-700 rounded-xl shadow-2xl py-2 z-50 text-xs animate-in zoom-in-95 duration-100">
-                <div className="px-3 py-1.5 border-b border-stone-800 text-stone-400 font-semibold uppercase tracking-wider text-[10px]">
-                  Workspace Utilities & Diagnostics
-                </div>
-
-                <div className="py-1">
-                  <button
-                    onClick={handleChecklistClick}
-                    className="w-full text-left px-3 py-2 text-stone-200 hover:bg-[#282a35] flex items-center gap-2.5 transition-colors"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-[#d4af37]" />
-                    <div className="flex-1">
-                      <div className="font-semibold text-white flex items-center justify-between">
-                        <span>PRD Acceptance Verification</span>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[#d4af37]/20 text-[#fcd34d]">
-                          12/12
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-stone-400">
-                        View compliance matrix & checks
-                      </div>
-                    </div>
-                  </button>
-
-                  {onResetData && (
-                    <button
-                      onClick={() => {
-                        setShowToolsMenu(false);
-                        onResetData();
-                      }}
-                      className="w-full text-left px-3 py-2 text-stone-200 hover:bg-[#282a35] flex items-center gap-2.5 transition-colors"
-                    >
-                      <RotateCcw className="w-4 h-4 text-rose-400" />
-                      <div>
-                        <div className="font-semibold text-white">Reset Demo Backlog</div>
-                        <div className="text-[11px] text-stone-400">Restore default projects & sessions</div>
-                      </div>
-                    </button>
-                  )}
-                </div>
-
-                <div className="px-3 py-2 border-t border-stone-800 text-[11px] text-stone-500 flex items-center justify-between">
-                  <span>AlignCraft v1.0</span>
-                  <span className="font-mono text-emerald-400">Client Persistence Active</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Persona Switcher Dropdown */}
+          {/* Persona Switcher Pill */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#1c1e26] hover:bg-[#242630] border border-stone-700 text-xs text-stone-200 transition-colors shadow-xs"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#14161f] hover:bg-[#1c1f2b] border border-[#252836] text-xs text-stone-200 transition-all shadow-xs"
             >
               <div
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
+                className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
                 style={{ backgroundColor: currentUser.avatarColor }}
               >
                 {currentUser.name.charAt(0)}
               </div>
-              <div className="text-left hidden sm:block">
-                <div className="font-semibold text-white leading-tight truncate max-w-[90px]">
-                  {currentUser.name}
-                </div>
-                <div className="text-[10px] text-[#d4af37] leading-tight">
-                  {getRoleLabel(currentUser.role)}
-                </div>
-              </div>
+              <span className="font-semibold text-white max-w-[100px] truncate">
+                {currentUser.name}
+              </span>
+              <span className="text-[10px] text-[#d4af37] hidden sm:inline">
+                ({currentUser.role})
+              </span>
               <ChevronDown className="w-3 h-3 text-stone-400" />
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-72 bg-[#1c1e26] border border-stone-700 rounded-xl shadow-2xl py-2 z-50 animate-in zoom-in-95 duration-100">
-                <div className="px-3 py-2 border-b border-stone-800">
-                  <div className="text-xs font-semibold text-stone-200">Workshop Collaboration Roles</div>
+              <div className="absolute right-0 mt-2 w-72 bg-[#14161f] border border-[#252836] rounded-2xl shadow-2xl py-2 z-50 animate-in zoom-in-95 duration-100">
+                <div className="px-4 py-2 border-b border-[#252836]">
+                  <div className="text-xs font-bold text-stone-200">Active Persona</div>
                   <div className="text-[11px] text-stone-400">
-                    Switch persona to test facilitator synchronization, voting, and role permissions.
+                    Switch user role to test permissions & collaborative voting.
                   </div>
                 </div>
                 <div className="py-1">
@@ -425,25 +279,25 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     <button
                       key={u.id}
                       onClick={() => handleUserSelect(u)}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-[#282a35] transition-colors ${
-                        currentUser.id === u.id ? 'bg-[#282a35] text-white' : 'text-stone-300'
+                      className={`w-full text-left px-4 py-2 text-xs flex items-center justify-between hover:bg-[#1c1f2b] transition-colors ${
+                        currentUser.id === u.id ? 'bg-[#1c1f2b] text-white' : 'text-stone-300'
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-xs"
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
                           style={{ backgroundColor: u.avatarColor }}
                         >
                           {u.name.charAt(0)}
                         </div>
                         <div>
-                          <div className="font-medium text-white flex items-center gap-1.5">
+                          <div className="font-semibold text-white flex items-center gap-1.5">
                             {u.name}
                             {u.isVerified && (
                               <span className="text-[10px] text-emerald-400 font-mono">✓ Verified</span>
                             )}
                           </div>
-                          <div className="text-[11px] text-stone-400">{getRoleLabel(u.role)}</div>
+                          <div className="text-[10px] text-stone-400">{getRoleLabel(u.role)}</div>
                         </div>
                       </div>
                       {currentUser.id === u.id && (
@@ -456,79 +310,71 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             )}
           </div>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={onToggleTheme}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-100 hover:bg-stone-800 border border-stone-800 transition-colors"
-            title={darkActive ? 'Switch to Warm Light theme' : 'Switch to Matte Charcoal Dark theme'}
-          >
-            {darkActive ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4" />}
-          </button>
+          {/* Reset Demo Data Button */}
+          {onResetData && (
+            <button
+              onClick={onResetData}
+              className="p-2 rounded-full bg-[#14161f] hover:bg-[#1c1f2b] text-stone-400 hover:text-rose-400 border border-[#252836] transition-colors"
+              title="Reset workspace demo data"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Mobile Navigation Drawer */}
+      {/* Mobile Drawer */}
       {showMobileMenu && (
-        <div className="md:hidden bg-[#18191f] border-b border-stone-800 px-4 py-3 space-y-1 animate-in slide-in-from-top-2 duration-150">
+        <div className="md:hidden bg-[#111218] border-b border-[#252836] px-4 py-3 space-y-1.5 animate-in slide-in-from-top-2 duration-150">
           <button
             onClick={() => handleNav('home')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'home' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold ${
+              currentTab === 'home' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span>Workspace</span>
-            <span className="text-[10px] text-stone-400">Dashboard</span>
+            Workspace Dashboard
           </button>
           <button
             onClick={() => handleNav('project')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'project' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold ${
+              currentTab === 'project' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span>Project Overview</span>
-            <span className="text-[10px] text-stone-400">Backlog & Workstreams</span>
+            Project Overview
           </button>
           <button
             onClick={() => handleNav('board')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'board' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold ${
+              currentTab === 'board' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span>Working Board</span>
-            <span className="text-[10px] text-stone-400">Interactive Kanban</span>
+            Working Board
           </button>
           <button
             onClick={() => handleNav('session')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'session' ? 'bg-[#242630] text-[#fcd34d] font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between ${
+              currentTab === 'session' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span className="flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-[#d4af37]" />
-              Session Room
-            </span>
-            <span className="text-[10px] text-stone-400">Live Prioritization</span>
+            <span>Session Room</span>
+            <Radio className="w-3.5 h-3.5 text-emerald-400" />
           </button>
           <button
             onClick={() => handleNav('results')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'results' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold ${
+              currentTab === 'results' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span>Session Results</span>
-            <span className="text-[10px] text-stone-400">Outcome & Export</span>
+            Results & Exports
           </button>
           <button
             onClick={() => handleNav('import')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between ${
-              currentTab === 'import' ? 'bg-[#242630] text-white font-bold' : 'text-stone-300 hover:bg-stone-800'
+            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between ${
+              currentTab === 'import' ? 'bg-[#d4af37] text-neutral-950 font-bold' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <span className="flex items-center gap-1.5">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
-              Import Wizard
-            </span>
-            <span className="text-[10px] text-stone-400">Excel / CSV</span>
+            <span>Import Excel</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
           </button>
         </div>
       )}
