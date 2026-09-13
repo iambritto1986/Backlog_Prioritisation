@@ -143,7 +143,7 @@ export default function App() {
       const guestUser: User = {
         id: `guest-${Date.now()}`,
         name: finalName,
-        email: 'guest@bananaos.ai',
+        email: 'guest@talonsync.com',
         role,
         avatarColor: '#10b981',
         isVerified: true,

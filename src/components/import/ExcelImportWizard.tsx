@@ -340,7 +340,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                     Upload Spreadsheet (XLSX or CSV)
                   </h3>
                   <p className="text-xs text-stone-400 mt-1 max-w-md mx-auto leading-relaxed">
-                    Banana OS automatically scans for header offsets, workstream tracks, leads, priorities (P0-P3), and workshop decisions.
+                    TalonSync automatically scans for header offsets, workstream tracks, leads, priorities (P0-P3), and workshop decisions.
                   </p>
                   <div className="mt-4">
                     <span className="inline-block px-4 py-2 rounded-xl bg-[#20232e] text-xs font-semibold text-stone-200 border border-[#2d3142]">
@@ -1219,7 +1219,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
                 Destination & Import Summary
               </h3>
               <p className="text-xs text-stone-300 leading-relaxed">
-                Review your destination settings and policy before importing. Banana OS will formulate all unique workstreams, attach designated leads, and populate deliverables.
+                Review your destination settings and policy before importing. TalonSync will formulate all unique workstreams, attach designated leads, and populate deliverables.
               </p>
 
               {/* Destination badge summary */}

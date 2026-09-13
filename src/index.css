@@ -168,3 +168,14 @@ code, kbd, samp, pre {
   background: linear-gradient(180deg, #f0d47d 0%, #c29e2f 100%) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5) !important;
 }
+
+/* Gold wordmark text — matches the metallic gradient in the TalonSync logo
+   (light warm-gold highlight fading to a deeper bronze), same direction as
+   .gold-gradient-btn above. Used for the "TalonSync" name itself wherever it
+   appears as a brand mark (header, landing page) rather than body copy. */
+.gold-text {
+  background: linear-gradient(180deg, #f5dfa0 0%, #d4af37 45%, #b8952c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

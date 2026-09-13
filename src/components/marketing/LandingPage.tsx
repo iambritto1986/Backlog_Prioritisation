@@ -6,14 +6,14 @@ import {
   CheckCircle2,
   Sparkles,
 } from 'lucide-react';
-import { BananaLogo } from '../common/BananaLogo';
+import { BrandLogo } from '../common/BrandLogo';
 import { SignInScreen } from '../auth/SignInScreen';
 import { LiquidBackground } from './LiquidBackground';
 
 /**
  * The public, signed-out landing page — what a visitor sees before they've
  * signed in or opened a share link. Replaces what used to be a bare Clerk
- * SignIn box floating alone on a black screen: this explains what Banana OS
+ * SignIn box floating alone on a black screen: this explains what TalonSync
  * actually is (left column) and docks sign-in to the side (right column),
  * per the redesign Britto asked for. See App.tsx's auth gate for where this
  * is mounted — guests arriving via a share link never see this at all.
@@ -26,9 +26,9 @@ export const LandingPage: React.FC = () => {
         {/* Brand mark */}
         <div className="flex items-center gap-2.5 mb-12 sm:mb-16">
           <div className="w-10 h-10 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center shadow-xs">
-            <BananaLogo className="w-6 h-6" />
+            <BrandLogo className="w-6 h-6" />
           </div>
-          <span className="font-black text-xl tracking-tight text-white">Banana OS</span>
+          <span className="gold-text font-black text-xl tracking-tight">TalonSync</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-start">
@@ -108,15 +108,8 @@ export const LandingPage: React.FC = () => {
               
               {/* Custom Header matching the reference */}
               <div className="flex flex-col items-center text-center mb-8">
-                {/* 3 Gold Circles Logo */}
-                <div className="flex flex-col items-center gap-1 mb-6">
-                  <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
-                  <div className="flex gap-1">
-                    <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
-                    <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
-                  </div>
-                </div>
-                
+                <BrandLogo className="w-12 h-12 mb-6" />
+
                 <h2 className="text-[22px] font-bold text-white mb-2">Welcome to your workspace</h2>
                 <p className="text-[13px] text-stone-400">
                   Sign in to plan, prioritize, and collaborate.

@@ -19,7 +19,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Project, PlanningSession, Workspace, User } from '../../types';
-import { BananaLogo } from '../common/BananaLogo';
+import { BrandLogo } from '../common/BrandLogo';
 
 interface WorkspaceHomeProps {
   workspace: Workspace;
@@ -112,7 +112,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
         <div className="bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 rounded-2xl p-5 shadow-lg transition-all flex items-center justify-between group">
           <div className="flex items-center gap-4">
             <div className="w-13 h-13 rounded-2xl bg-[#1a1b24] border border-[#d4af37]/25 flex items-center justify-center group-hover:border-[#d4af37] transition-all shadow-inner">
-              <BananaLogo className="w-7 h-7" />
+              <BrandLogo className="w-7 h-7" />
             </div>
             <div>
               <div className="text-xs font-semibold text-stone-400">Active Projects</div>

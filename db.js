@@ -1,4 +1,4 @@
-// Banana OS — Prisma client singleton.
+// TalonSync — Prisma client singleton.
 //
 // This file is imported ONLY by server.js (the backend). It must never be
 // imported from anything under src/ — that's the browser bundle, and the
@@ -13,11 +13,11 @@ import { PrismaClient } from '@prisma/client';
 const globalForPrisma = globalThis;
 
 export const prisma =
-  globalForPrisma.__bananaOsPrisma__ ??
+  globalForPrisma.__talonSyncPrisma__ ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['query', 'error', 'warn'],
   });
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.__bananaOsPrisma__ = prisma;
+  globalForPrisma.__talonSyncPrisma__ = prisma;
 }
