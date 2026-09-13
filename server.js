@@ -2,11 +2,18 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: '*' },
+});
+
 const PORT = process.env.PORT || 3000;
 
 // JSON and URL-encoded body parser
@@ -110,8 +117,36 @@ app.get('*', (req, res) => {
   }
 });
 
-// Start Express Server
-app.listen(PORT, '0.0.0.0', () => {
+// Socket.IO for Live Knock/Authorization
+io.on('connection', (socket) => {
+  // Facilitator joins their host room
+  socket.on('host_session', ({ sessionId, facilitatorName }) => {
+    socket.join(`host_${sessionId}`);
+    console.log(`Facilitator ${facilitatorName} is hosting session ${sessionId}`);
+  });
+
+  // Guest knocks
+  socket.on('knock', ({ sessionId, guestId, guestName }) => {
+    socket.join(guestId); // Guest waits in their own room
+    io.to(`host_${sessionId}`).emit('guest_knock', { guestId, guestName, sessionId });
+    console.log(`Guest ${guestName} (${guestId}) knocking for session ${sessionId}`);
+  });
+
+  // Host approves
+  socket.on('approve_guest', ({ sessionId, guestId }) => {
+    io.to(guestId).emit('knock_approved', { sessionId });
+    console.log(`Guest ${guestId} approved for session ${sessionId}`);
+  });
+
+  // Host rejects
+  socket.on('reject_guest', ({ sessionId, guestId }) => {
+    io.to(guestId).emit('knock_rejected', { sessionId });
+    console.log(`Guest ${guestId} rejected for session ${sessionId}`);
+  });
+});
+
+// Start Express + HTTP Server
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
   console.log(`🚀 Product Planner Server running on http://0.0.0.0:${PORT}`);
   console.log(`📁 Serving static assets from: ${distPath}`);

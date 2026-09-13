@@ -24,6 +24,7 @@ import { PrdAcceptanceModal } from './components/verification/PrdAcceptanceModal
 import { AlertTriangle } from 'lucide-react';
 
 import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
+import { KnockToJoinModal } from './components/session/KnockToJoinModal';
 
 export type ActiveView =
   | 'home'
@@ -52,6 +53,9 @@ export default function App() {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  
+  // Pending share payload for Knock to Join flow
+  const [pendingSharePayload, setPendingSharePayload] = useState<any>(null);
 
   // Initialize data from Persistence & Auth Services
   useEffect(() => {
@@ -80,7 +84,7 @@ export default function App() {
     }
   }, [activeView]);
 
-  const hydrateShareData = async (payload: any): Promise<boolean> => {
+  const hydrateShareData = async (payload: any, guestName?: string): Promise<boolean> => {
     try {
       const proj: Project | undefined = payload.project || payload.p;
       const sess: PlanningSession | undefined = payload.session || payload.s;
@@ -109,11 +113,15 @@ export default function App() {
       setSelectedProjectId(proj.id);
       setSelectedSessionId(sess.id);
       setActiveView('session_room');
+      
+      // Clear pending payload modal
+      setPendingSharePayload(null);
 
       // Set guest contributor persona
+      const finalName = guestName || `Guest (${role === 'facilitator' ? 'Facilitator' : 'Contributor'})`;
       const guestUser: User = {
         id: `guest-${Date.now()}`,
-        name: `Guest (${role === 'facilitator' ? 'Facilitator' : 'Contributor'})`,
+        name: finalName,
         email: 'guest@bananaos.ai',
         role,
         avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -142,12 +150,10 @@ export default function App() {
       ) {
         const parsed = await parseShareHash(hashStr);
         if (parsed) {
-          const ok = await hydrateShareData(parsed);
-          if (ok) {
-            const cleanUrl = window.location.origin + window.location.pathname;
-            window.history.replaceState(null, '', cleanUrl);
-            return;
-          }
+          setPendingSharePayload(parsed);
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState(null, '', cleanUrl);
+          return;
         }
       }
     }
@@ -161,12 +167,10 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data && (data.project || data.p)) {
-            const ok = await hydrateShareData(data);
-            if (ok) {
-              const cleanUrl = window.location.origin + window.location.pathname;
-              window.history.replaceState(null, '', cleanUrl);
-              return;
-            }
+            setPendingSharePayload(data);
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState(null, '', cleanUrl);
+            return;
           }
         }
       } catch (e) {
@@ -178,12 +182,10 @@ export default function App() {
     if (pkgParam) {
       const parsed = await parseShareHash(pkgParam);
       if (parsed) {
-        const ok = await hydrateShareData(parsed);
-        if (ok) {
-          const cleanUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState(null, '', cleanUrl);
-          return;
-        }
+        setPendingSharePayload(parsed);
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState(null, '', cleanUrl);
+        return;
       }
     }
 
@@ -888,6 +890,15 @@ export default function App() {
           <span className="w-2 h-2 rounded-full bg-[#d4af37]" />
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {/* Knock to Join Flow */}
+      {pendingSharePayload && (
+        <KnockToJoinModal
+          payload={pendingSharePayload}
+          onApproved={(payload, guestName) => hydrateShareData(payload, guestName)}
+          onCancel={() => setPendingSharePayload(null)}
+        />
       )}
 
       {/* Create Session Modal */}
