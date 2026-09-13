@@ -121,6 +121,12 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   const [myVote, setMyVote] = useState<string>('');
   const [showVotingLauncher, setShowVotingLauncher] = useState(false);
 
+  // Quick Add (Workstream / Deliverable) — in-app replacement for the old
+  // window.prompt()-based flow.
+  const [quickAddMode, setQuickAddMode] = useState<'workstream' | 'card' | null>(null);
+  const [quickAddValue, setQuickAddValue] = useState('');
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+
   // Conflict state
   const [conflictAssessment, setConflictAssessment] = useState<SessionAssessment | null>(null);
 
@@ -320,6 +326,14 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
     }
   }, [selectedCardId, selectedWorkstreamId]);
 
+  // Auto-dismiss the Quick Add validation toast
+  useEffect(() => {
+    if (quickAddError) {
+      const t = setTimeout(() => setQuickAddError(null), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [quickAddError]);
+
   // Track cursor movement
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (centerContainerRef.current) {
@@ -330,67 +344,82 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
     }
   };
 
-  // Quick add helpers for real-time collaboration
-  const handleQuickAddWorkstream = async () => {
-    const wsName = prompt('Enter name for the new Workstream track:');
-    if (!wsName?.trim()) return;
-
-    const newWs = {
-      id: `ws-${Date.now()}`,
-      projectId: project.id,
-      name: wsName,
-      leadName: currentUser.name,
-      color: '#d4af37',
-      displayOrder: project.workstreams.length + 1,
-    };
-
-    const updatedProj = { ...project, workstreams: [...project.workstreams, newWs] };
-    await persistenceService.saveProject(updatedProj);
-    
-    if (onProjectUpdated) {
-      onProjectUpdated(updatedProj);
-    }
-    
-    presenceService.broadcastEntitySync('workstream', newWs);
+  // Quick add helpers for real-time collaboration. These used to be
+  // window.prompt()/alert() calls — functional, but they pop a native
+  // browser dialog that looks completely detached from the app's own UI
+  // (wrong font, wrong colors, "talonsync.com says" chrome). Replaced with
+  // the in-app QuickAddModal below; the actual save logic is unchanged.
+  const handleQuickAddWorkstream = () => {
+    setQuickAddError(null);
+    setQuickAddValue('');
+    setQuickAddMode('workstream');
   };
 
-  const handleQuickAddCard = async () => {
+  const handleQuickAddCard = () => {
     if (!selectedWorkstreamId) {
-      alert('Please select a workstream track first.');
+      setQuickAddError('Please select a workstream track first.');
       return;
     }
-    
-    const cardTitle = prompt('Enter title for the new Deliverable:');
-    if (!cardTitle?.trim()) return;
-    
-    const ws = project.workstreams.find(w => w.id === selectedWorkstreamId);
+    setQuickAddError(null);
+    setQuickAddValue('');
+    setQuickAddMode('card');
+  };
 
-    const newCard: Card = {
-      id: `CARD-${Date.now().toString().substring(5)}`,
-      projectId: project.id,
-      workstreamId: selectedWorkstreamId,
-      workstreamName: ws?.name || '',
-      title: cardTitle,
-      description: '',
-      currentPriority: 'Unprioritized',
-      currentStage: 'Requirements',
-      internalOwner: currentUser.name,
-      deliveryPartnerOwner: '',
-      targetDateOrQuarter: 'TBD',
-      dependencies: '',
-      customFields: {},
-      sourceMeta: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  const handleQuickAddSubmit = async (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
 
-    await persistenceService.saveCards([newCard]);
-    const updatedCards = [...cards, newCard];
-    onCardsUpdated(updatedCards);
-    
-    setSelectedCardId(newCard.id);
-    
-    presenceService.broadcastEntitySync('card', newCard);
+    if (quickAddMode === 'workstream') {
+      const newWs = {
+        id: `ws-${Date.now()}`,
+        projectId: project.id,
+        name: trimmed,
+        leadName: currentUser.name,
+        color: '#d4af37',
+        displayOrder: project.workstreams.length + 1,
+      };
+
+      const updatedProj = { ...project, workstreams: [...project.workstreams, newWs] };
+      await persistenceService.saveProject(updatedProj);
+
+      if (onProjectUpdated) {
+        onProjectUpdated(updatedProj);
+      }
+
+      presenceService.broadcastEntitySync('workstream', newWs);
+    } else if (quickAddMode === 'card') {
+      const ws = project.workstreams.find((w) => w.id === selectedWorkstreamId);
+
+      const newCard: Card = {
+        id: `CARD-${Date.now().toString().substring(5)}`,
+        projectId: project.id,
+        workstreamId: selectedWorkstreamId,
+        workstreamName: ws?.name || '',
+        title: trimmed,
+        description: '',
+        currentPriority: 'Unprioritized',
+        currentStage: 'Requirements',
+        internalOwner: currentUser.name,
+        deliveryPartnerOwner: '',
+        targetDateOrQuarter: 'TBD',
+        dependencies: '',
+        customFields: {},
+        sourceMeta: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await persistenceService.saveCards([newCard]);
+      const updatedCards = [...cards, newCard];
+      onCardsUpdated(updatedCards);
+
+      setSelectedCardId(newCard.id);
+
+      presenceService.broadcastEntitySync('card', newCard);
+    }
+
+    setQuickAddMode(null);
+    setQuickAddValue('');
   };
 
   // Active card and assessment helpers
@@ -1900,6 +1929,84 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
           onConfirmDecision={handleConfirmDecision}
           onCancelVoting={handleCancelVoting}
         />
+      )}
+
+      {/* Quick Add (Workstream / Deliverable) Modal — replaces the old
+          window.prompt() dialogs, which rendered as a native browser popup
+          ("talonsync.com says...") completely outside the app's own theme. */}
+      {quickAddMode && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#1c1e24] border-2 border-[#d4af37]/60 rounded-2xl max-w-md w-full p-6 text-stone-100 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/50 flex items-center justify-center text-[#d4af37]">
+                  <Plus className="w-4.5 h-4.5" />
+                </div>
+                <h3 className="text-sm font-bold text-white">
+                  {quickAddMode === 'workstream' ? 'Add Workstream Track' : 'Add Deliverable'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setQuickAddMode(null)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4 rotate-45" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-stone-300">
+                {quickAddMode === 'workstream'
+                  ? 'Workstream track name'
+                  : `Deliverable title (${project.workstreams.find((w) => w.id === selectedWorkstreamId)?.name || 'current track'})`}
+              </label>
+              <input
+                autoFocus
+                type="text"
+                value={quickAddValue}
+                onChange={(e) => setQuickAddValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleQuickAddSubmit(quickAddValue);
+                  if (e.key === 'Escape') setQuickAddMode(null);
+                }}
+                placeholder={
+                  quickAddMode === 'workstream'
+                    ? 'e.g. Platform Reliability'
+                    : 'e.g. Migrate reporting export to async queue'
+                }
+                className="w-full px-3 py-2.5 rounded-xl bg-[#16181e] border border-stone-700 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#d4af37]"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setQuickAddMode(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!quickAddValue.trim()}
+                onClick={() => handleQuickAddSubmit(quickAddValue)}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#d4af37] hover:bg-[#c59e2b] disabled:opacity-40 disabled:cursor-not-allowed text-neutral-950 text-xs font-bold shadow-md transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{quickAddMode === 'workstream' ? 'Add Track' : 'Add Deliverable'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add validation toast (e.g. "select a workstream first") — was
+          a native alert() before; now a transient in-app banner. */}
+      {quickAddError && !quickAddMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-semibold shadow-2xl flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {quickAddError}
+        </div>
       )}
 
       {/* Knock Approvals UI (For Facilitator) */}

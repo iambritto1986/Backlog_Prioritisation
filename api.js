@@ -415,7 +415,14 @@ apiRouter.post('/projects', async (req, res, next) => {
 // onDelete: Cascade relations.
 apiRouter.delete('/projects/:id', async (req, res, next) => {
   try {
-    await prisma.project.delete({ where: { id: req.params.id } }).catch(() => {});
+    await prisma.project.delete({ where: { id: req.params.id } }).catch((err) => {
+      // P2025 = "record to delete does not exist" — deleting an id that's
+      // already gone (double-click, retry, id only ever existed in a
+      // client's stale localStorage copy) is a no-op, not a failure. Any
+      // other error (DB unreachable, etc.) should surface for real instead
+      // of being reported back to the client as a false success.
+      if (err?.code !== 'P2025') throw err;
+    });
     res.json({ success: true });
   } catch (err) {
     next(err);

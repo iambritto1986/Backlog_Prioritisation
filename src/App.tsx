@@ -10,7 +10,7 @@ import {
   Workstream,
 } from './types';
 import { SEED_WORKSPACE, SEED_PROJECTS, SEED_CARDS, SEED_SESSIONS, SEED_USERS } from './data/seedData';
-import { persistenceService } from './services/PersistenceService';
+import { persistenceService, setPersistenceAuthMode } from './services/PersistenceService';
 import { authService } from './services/AuthService';
 import { presenceService } from './services/PresenceService';
 import { AppHeader } from './components/layout/AppHeader';
@@ -66,6 +66,21 @@ export default function App() {
     () => localStorage.getItem(GUEST_SESSION_KEY) === 'true'
   );
   const { isSignedIn, isLoaded: isClerkLoaded, user: clerkUser } = useUser();
+
+  // Tell PersistenceService which backend to use as soon as we actually
+  // know — never before. A guest session (restored from localStorage) is
+  // known synchronously at mount; everyone else has to wait for Clerk's own
+  // `isLoaded` flag, since `window.Clerk?.session` can lag mount by a
+  // noticeable amount and guessing "guest" in the meantime is what caused
+  // deletes/reads to silently split across localStorage and the real
+  // backend (see the long comment on PersistenceService's dispatcher).
+  useEffect(() => {
+    if (isGuestSession) {
+      setPersistenceAuthMode('guest');
+    } else if (isClerkLoaded) {
+      setPersistenceAuthMode(isSignedIn ? 'signed_in' : 'guest');
+    }
+  }, [isGuestSession, isClerkLoaded, isSignedIn]);
 
   // Initialize data from Persistence & Auth Services
   useEffect(() => {

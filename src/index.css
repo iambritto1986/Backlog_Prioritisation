@@ -154,6 +154,41 @@ code, kbd, samp, pre {
   filter: invert(1) !important;
 }
 
+/* AppHeader's UserButton pill: force the trigger to hug the avatar exactly.
+   The `appearance.elements` Tailwind-class overrides passed in AppHeader.tsx
+   (userButtonBox/userButtonTrigger) lose the specificity fight against
+   Clerk's own internal stylesheet for this component in some builds, which
+   left a visible empty gap between the pill's left edge and the avatar
+   circle (space Clerk reserves by default for the outer name/identifier we
+   hide). Pin it directly here, same technique as the sign-in overrides
+   above, so it holds regardless of Clerk's internal class churn. */
+.cl-userButtonBox {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  min-width: 1.75rem !important;
+  flex: none !important;
+}
+
+.cl-userButtonTrigger {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  min-width: 1.75rem !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.cl-userButtonOuterIdentifier {
+  display: none !important;
+}
+
+.cl-avatarBox {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+}
+
 /* Gold Gradient Button */
 .gold-gradient-btn {
   background: linear-gradient(180deg, #e5c564 0%, #b8952c 100%) !important;

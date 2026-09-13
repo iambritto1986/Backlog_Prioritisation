@@ -828,23 +828,66 @@ class ApiPersistenceService implements IPersistenceService {
 //     as every browser did before this migration — see the comment on
 //     LocalPersistenceService for why guests aren't switched over yet.
 //
-// `window.Clerk?.session` is the standard way to check Clerk auth state
-// synchronously outside of a React component (this class is a plain
-// singleton, not a hook) — Clerk's SDK sets it once ClerkProvider has
-// initialized.
+// IMPORTANT — this used to sniff `window.Clerk?.session` synchronously on
+// every call. That was a race: Clerk's SDK initializes asynchronously (tens
+// to hundreds of ms after mount, sometimes longer on a cold load), so any
+// persistence call made before it finishes — most notably App.tsx's
+// initApp(), which runs in a mount effect immediately — would see no
+// session yet and silently read/write localStorage instead of the real
+// backend, even for a fully signed-in user. Because different calls in the
+// same page load could straddle that window differently (e.g. an early
+// getProjects() reading Local while a later deleteProject() — issued after
+// Clerk had loaded — hit the Api), the app would flip between two
+// completely independent data stores within one session: a project "deleted"
+// via the API would still exist in the Local seed data an earlier read had
+// shown, reappearing after the next refresh landed back on the Local path.
+// That produced exactly the symptoms reported after the first real-backend
+// deploy (a deleted project "coming back", sessions/cards intermittently
+// missing, Start Voting silently no-op'ing because the session's cards
+// array came back empty).
+//
+// The fix: never guess. App.tsx explicitly reports the real auth mode via
+// setPersistenceAuthMode() once Clerk's `useUser()` hook resolves
+// `isLoaded` (or immediately, for a guest session restored from
+// localStorage, which is known synchronously). Every dispatcher call awaits
+// that mode instead of sampling `window.Clerk` mid-flight — so the very
+// first call of a page load blocks (briefly) until the real answer is
+// known, rather than racing ahead on a guess. A short safety timeout
+// prevents an indefinite hang if something upstream never reports in.
 // ---------------------------------------------------------------------------
-declare global {
-  interface Window {
-    Clerk?: { session?: unknown };
+export type PersistenceAuthMode = 'guest' | 'signed_in';
+
+let authMode: PersistenceAuthMode | null = null;
+let resolveAuthMode: ((mode: PersistenceAuthMode) => void) | null = null;
+let authModeReady: Promise<PersistenceAuthMode> = new Promise((resolve) => {
+  resolveAuthMode = resolve;
+});
+
+// Called from App.tsx as soon as the real answer is known: synchronously on
+// mount for a restored guest session, or from an effect keyed on Clerk's
+// `isLoaded` for everyone else. Safe to call repeatedly (e.g. when a guest
+// signs in, or a signed-in user signs out) — later calls just update the
+// live value; only the *first* call resolves the initial gate.
+export function setPersistenceAuthMode(mode: PersistenceAuthMode): void {
+  authMode = mode;
+  if (resolveAuthMode) {
+    resolveAuthMode(mode);
+    resolveAuthMode = null;
   }
 }
 
-function isSignedIn(): boolean {
-  try {
-    return typeof window !== 'undefined' && !!window.Clerk?.session;
-  } catch {
-    return false;
-  }
+async function resolveSignedIn(): Promise<boolean> {
+  if (authMode !== null) return authMode === 'signed_in';
+  // Auth mode not reported yet (very first calls of a fresh page load,
+  // racing App.tsx's own effects) — wait for the real answer instead of
+  // guessing, with a safety timeout so a page that never calls
+  // setPersistenceAuthMode (e.g. a stray import in a test) can't hang
+  // forever.
+  const mode = await Promise.race([
+    authModeReady,
+    new Promise<PersistenceAuthMode>((resolve) => setTimeout(() => resolve('guest'), 6000)),
+  ]);
+  return mode === 'signed_in';
 }
 
 export class PersistenceService implements IPersistenceService {
@@ -862,7 +905,7 @@ export class PersistenceService implements IPersistenceService {
     op: (svc: IPersistenceService) => Promise<T>,
     label: string
   ): Promise<T> {
-    if (!isSignedIn()) {
+    if (!(await resolveSignedIn())) {
       return op(this.local);
     }
     try {
@@ -1011,7 +1054,7 @@ export class PersistenceService implements IPersistenceService {
   // PLAN / TRIAL / INVITE LIMIT — real-backend-only; guests simply get null
   // (no fallback to local, since the concept doesn't exist there).
   async getWorkspacePlan(): Promise<WorkspacePlanStatus | null> {
-    if (!isSignedIn()) return null;
+    if (!(await resolveSignedIn())) return null;
     try {
       return await this.api.getWorkspacePlan();
     } catch {
@@ -1019,7 +1062,7 @@ export class PersistenceService implements IPersistenceService {
     }
   }
   async createSessionShareLink(sessionId: string): Promise<{ token: string; url: string; expiresAt: string }> {
-    if (!isSignedIn()) {
+    if (!(await resolveSignedIn())) {
       throw new Error('Sign in to create a durable share link.');
     }
     return this.api.createSessionShareLink(sessionId);
