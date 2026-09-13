@@ -2,6 +2,7 @@ import React from 'react';
 import { useUser, UserButton } from '@clerk/clerk-react';
 import {
   ChevronRight,
+  ChevronDown,
   Radio,
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
@@ -120,17 +121,43 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
           )}
 
-          {/* Identity: Clerk UserButton for real sign-ins, static badge for guests */}
+          {/* Identity: Clerk UserButton for real sign-ins, static badge for guests.
+              The avatar itself is the only click target Clerk renders — the
+              chevron here is decorative, just to signal "this opens a menu"
+              (account settings + Sign Out live in that popover). */}
           {isSignedIn ? (
-            <div className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 transition-all shadow-xs">
+            <div
+              className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/60 transition-all shadow-xs"
+              title="Account & sign out"
+            >
               <UserButton
                 appearance={{
-                  elements: { avatarBox: 'w-6 h-6' },
+                  variables: {
+                    colorPrimary: '#d4af37',
+                    colorBackground: '#121318',
+                    colorText: '#e5e7eb',
+                    colorTextSecondary: '#a8a29e',
+                    colorInputBackground: '#18191c',
+                    colorInputText: '#e5e7eb',
+                    borderRadius: '0.75rem',
+                  },
+                  elements: {
+                    avatarBox: 'w-7 h-7',
+                    userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
+                    userButtonPopoverMain: 'bg-[#121318]',
+                    userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
+                    userButtonPopoverActionButtonText: 'text-[#e5e7eb]',
+                    userButtonPopoverActionButtonIcon: 'text-[#a8a29e]',
+                    userButtonPopoverFooter: 'hidden',
+                    userPreviewMainIdentifier: 'text-[#e5e7eb]',
+                    userPreviewSecondaryIdentifier: 'text-[#a8a29e]',
+                  },
                 }}
               />
               <span className="font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate text-xs">
                 {currentUser.name}
               </span>
+              <ChevronDown className="w-3 h-3 text-stone-500" />
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121318] border border-[#1f222c] text-xs text-stone-200 shadow-xs">

@@ -70,6 +70,17 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
   const totalWorkstreams = projects.reduce((acc, p) => acc + (p.workstreams?.length || 0), 0);
   const liveSessions = sessions.filter((s) => s.stage === 'live');
 
+  // Real "decisions reached" figure, computed from each closed session's own
+  // close-out snapshot (assessmentsCount / selectedCount) — not a stand-in
+  // number. Sessions that haven't been closed yet don't have a snapshot and
+  // aren't counted.
+  const latestSnapshots = sessions
+    .map((s) => s.versionSnapshots?.[s.versionSnapshots.length - 1])
+    .filter((snap): snap is NonNullable<typeof snap> => !!snap);
+  const totalAssessed = latestSnapshots.reduce((acc, snap) => acc + snap.assessmentsCount, 0);
+  const totalSelected = latestSnapshots.reduce((acc, snap) => acc + snap.selectedCount, 0);
+  const decisionsReachedPct = totalAssessed > 0 ? Math.round((totalSelected / totalAssessed) * 100) : null;
+
   // Filter projects by search
   const filteredProjects = projects.filter((p) => {
     const q = searchQuery.toLowerCase().trim();
@@ -138,11 +149,15 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
               <Sparkles className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-stone-400">Delphi Sizing Consensus</div>
+              <div className="text-xs font-semibold text-stone-400">Decisions Reached</div>
               <div className="text-2xl font-black tracking-tight text-emerald-400 mt-0.5">
-                92%
+                {decisionsReachedPct !== null ? `${decisionsReachedPct}%` : '—'}
               </div>
-              <div className="text-[11px] text-stone-500 font-medium">Multi-party estimation agreement</div>
+              <div className="text-[11px] text-stone-500 font-medium">
+                {totalAssessed > 0
+                  ? `${totalSelected} of ${totalAssessed} discussed items selected, across closed workshops`
+                  : 'Close a workshop session to see this'}
+              </div>
             </div>
           </div>
         </div>
