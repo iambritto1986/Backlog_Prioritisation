@@ -1238,6 +1238,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
           project={project}
           session={sessionToShare}
           sessions={sessions}
+          cards={cards}
           currentUser={currentUser}
           deliverablesCount={cards.length}
           onClose={() => setShowShareModal(false)}

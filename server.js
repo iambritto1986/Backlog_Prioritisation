@@ -24,6 +24,39 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Shared Workshop In-Memory Storage Cache (for cross-device sharing)
+const shareStore = new Map();
+
+app.post('/api/share', (req, res) => {
+  try {
+    const { project, session, cards, role, invitedBy } = req.body;
+    if (!project || !session) {
+      return res.status(400).json({ error: 'Project and session required' });
+    }
+    const code = 'WS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    shareStore.set(code, {
+      project,
+      session,
+      cards: cards || [],
+      role: role || 'contributor',
+      invitedBy: invitedBy || 'Facilitator',
+      createdAt: new Date().toISOString(),
+    });
+    res.json({ code, url: `/?share=${code}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/share/:code', (req, res) => {
+  const code = (req.params.code || '').toUpperCase();
+  const data = shareStore.get(code);
+  if (!data) {
+    return res.status(404).json({ error: 'Shared workshop link not found or expired' });
+  }
+  res.json(data);
+});
+
 // App Metadata API
 app.get('/api/info', (req, res) => {
   res.status(200).json({

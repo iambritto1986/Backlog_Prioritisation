@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Project, PlanningSession, Role, User } from '../../types';
+import { Project, PlanningSession, Role, User, Card } from '../../types';
 import { authService } from '../../services/AuthService';
+import { createShareHash } from '../../utils/shareBundle';
 import {
   Share2,
   Copy,
@@ -16,12 +17,14 @@ import {
   ExternalLink,
   Radio,
   CheckCircle2,
+  Globe,
 } from 'lucide-react';
 
 interface ShareSessionModalProps {
   project: Project;
   session?: PlanningSession;
   sessions: PlanningSession[];
+  cards?: Card[];
   currentUser: User;
   deliverablesCount: number;
   onClose: () => void;
@@ -32,6 +35,7 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
   project,
   session: initialSession,
   sessions,
+  cards = [],
   currentUser,
   deliverablesCount,
   onClose,
@@ -42,6 +46,7 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
   );
   const [selectedRole, setSelectedRole] = useState<Role>('contributor');
   const [inviteLink, setInviteLink] = useState('');
+  const [portableHashLink, setPortableHashLink] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedInviteText, setCopiedInviteText] = useState(false);
@@ -56,14 +61,43 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
   const generateLink = async () => {
     setIsGenerating(true);
     try {
-      const invite = await authService.createInvitation(
-        project.id,
-        selectedSessionId,
-        selectedRole
-      );
-      setInviteCode(invite.code);
-      const url = `${window.location.origin}/?join=${invite.code}`;
-      setInviteLink(url);
+      const sess = activeSession || initialSession || sessions[0];
+      if (!sess) return;
+
+      // Generate portable client-side compressed hash
+      const hash = await createShareHash(project, sess, cards, selectedRole, currentUser.name);
+      const directHashUrl = `${window.location.origin}/#workshop=${hash}`;
+      setPortableHashLink(directHashUrl);
+
+      // Try server-backed short link
+      try {
+        const resp = await fetch('/api/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project,
+            session: sess,
+            cards,
+            role: selectedRole,
+            invitedBy: currentUser.name,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.code) {
+            setInviteCode(data.code);
+            setInviteLink(`${window.location.origin}/?share=${data.code}`);
+            setIsGenerating(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Server share API unavailable, using portable URL link', e);
+      }
+
+      // Default to direct portable hash URL
+      setInviteCode('PORTABLE');
+      setInviteLink(directHashUrl);
     } catch (e) {
       console.error('Failed to generate invite', e);
     } finally {
@@ -87,13 +121,14 @@ export const ShareSessionModal: React.FC<ShareSessionModalProps> = ({
 
     return `🗓️ Invitation to Project Planning Session: ${sessionName}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏢 Project: ${project.name}
 📅 Date & Time: ${date} (${tz})
 🎯 Facilitator: ${facilitator}
 📌 Target Delivery: ${horizon}
-📊 Scope: ${deliverablesCount} Deliverables imported for workshop review
-🔗 Join Planning Board: ${inviteLink}
+📊 Scope: ${deliverablesCount} Deliverables & ${project.workstreams?.length || 0} Workstream Tracks
+🔗 Live Workshop Link: ${inviteLink}
 
-Please review our backlog and join the live session to assess priorities, validate ownership, and align on decisions.`;
+Please open the link to join our live session, review workstream deliverables, and participate in prioritization!`;
   };
 
   const handleCopyInviteText = () => {
@@ -103,26 +138,26 @@ Please review our backlog and join the live session to assess priorities, valida
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#1e2027] border border-stone-200 dark:border-stone-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#121318] border border-[#282c38] rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-[#e5e7eb] animate-in zoom-in-95 duration-100">
         {/* Header */}
-        <div className="flex items-start justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+        <div className="flex items-start justify-between pb-3 border-b border-[#1f222c]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
+            <div className="w-10 h-10 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37] shadow-inner">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
-                Share Planning Session & Workspace
+              <h3 className="text-base font-bold text-white">
+                Share Live Workshop & Backlog
               </h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                Send stakeholders a direct link to what you are building and prioritizing.
+              <p className="text-xs text-stone-400">
+                Send colleagues a direct link to <strong className="text-white">{project.name}</strong>.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-1 text-base font-bold"
+            className="text-stone-400 hover:text-white p-1 text-base font-bold"
           >
             ✕
           </button>
@@ -131,13 +166,13 @@ Please review our backlog and join the live session to assess priorities, valida
         {/* Session Selector (if multiple exist) */}
         {sessions.length > 1 && (
           <div>
-            <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
+            <label className="block text-xs font-semibold text-stone-300 mb-1.5">
               Select Planning Session
             </label>
             <select
               value={selectedSessionId}
               onChange={(e) => setSelectedSessionId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-900 dark:text-stone-100 text-xs focus:outline-none focus:border-[#d4af37]"
+              className="w-full px-3 py-2 rounded-xl border border-[#282c38] bg-[#181920] text-white text-xs focus:outline-none focus:border-[#d4af37]"
             >
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -150,32 +185,33 @@ Please review our backlog and join the live session to assess priorities, valida
 
         {/* Session Context Digest Card */}
         {activeSession && (
-          <div className="bg-stone-50 dark:bg-[#18191c] p-4 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2.5">
+          <div className="bg-[#181920] p-4 rounded-xl border border-[#252836] space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+              <span className="text-xs font-bold text-white flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#d4af37]" />
                 {activeSession.name}
               </span>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30">
                 Ready for Attendees
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs text-stone-600 dark:text-stone-400 pt-1">
+            <div className="grid grid-cols-2 gap-2 text-xs text-stone-300 pt-1">
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#d4af37]" />
-                <span>Date: <strong>{activeSession.date}</strong></span>
+                <span>Date: <strong className="text-white">{activeSession.date}</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-stone-400" />
-                <span>Facilitator: <strong>{activeSession.facilitatorName}</strong></span>
+                <span>Facilitator: <strong className="text-white">{activeSession.facilitatorName}</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
-                <span>Scope: <strong>{deliverablesCount} Deliverables</strong></span>
+                <span>Scope: <strong className="text-[#fcd34d]">{deliverablesCount} Deliverables</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-stone-400" />
-                <span>Horizon: <strong>{activeSession.deliveryHorizon}</strong></span>
+                <span>Horizon: <strong className="text-white">{activeSession.deliveryHorizon}</strong></span>
               </div>
             </div>
           </div>
@@ -184,19 +220,19 @@ Please review our backlog and join the live session to assess priorities, valida
         {/* Share Link & Role Selection */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-stone-700 dark:text-stone-300">
-              Invite Access Link
+            <label className="text-xs font-semibold text-stone-300">
+              Live Workshop Direct Link
             </label>
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-stone-500">Access Level:</span>
+              <span className="text-stone-400">Join Role:</span>
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value as Role)}
-                className="px-2 py-1 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-[#18191c] text-stone-800 dark:text-stone-200 text-xs"
+                className="px-2.5 py-1 rounded-lg border border-[#282c38] bg-[#181920] text-stone-200 text-xs focus:outline-none focus:border-[#d4af37]"
               >
                 <option value="contributor">Contributor (Can Vote & Propose)</option>
-                <option value="editor">Editor (Can Update Card Fields)</option>
-                <option value="viewer">Viewer (Read-Only Reviewer)</option>
+                <option value="editor">Editor (Can Edit Backlog)</option>
+                <option value="viewer">Viewer (Read-Only Observer)</option>
               </select>
             </div>
           </div>
@@ -207,13 +243,14 @@ Please review our backlog and join the live session to assess priorities, valida
               <input
                 type="text"
                 readOnly
-                value={inviteLink || 'Generating link...'}
-                className="w-full pl-8 pr-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-100 dark:bg-[#18191c] text-stone-800 dark:text-stone-200 text-xs font-mono select-all focus:outline-none"
+                value={inviteLink || (isGenerating ? 'Generating portable workshop link...' : '')}
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#282c38] bg-[#14161f] text-stone-200 text-xs font-mono select-all focus:outline-none focus:border-[#d4af37]"
               />
             </div>
             <button
               onClick={handleCopyLink}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 text-xs font-bold transition-all shrink-0 shadow-sm"
+              disabled={!inviteLink}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 text-xs font-bold transition-all shrink-0 shadow-md"
             >
               {copiedLink ? (
                 <>
@@ -233,18 +270,18 @@ Please review our backlog and join the live session to assess priorities, valida
         {/* Formatted Meeting Invite Preview */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-stone-300 flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-[#d4af37]" />
-              Calendar / Slack Invite Message
+              Calendar / Slack Invite Snippet
             </span>
             <button
               onClick={handleCopyInviteText}
-              className="text-xs font-bold text-[#b45309] dark:text-[#fcd34d] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#fcd34d] hover:underline flex items-center gap-1"
             >
               {copiedInviteText ? (
                 <>
                   <Check className="w-3.5 h-3.5" />
-                  <span>Copied to Clipboard!</span>
+                  <span>Copied Message!</span>
                 </>
               ) : (
                 <>
@@ -255,21 +292,21 @@ Please review our backlog and join the live session to assess priorities, valida
             </button>
           </div>
 
-          <pre className="p-3 rounded-lg bg-stone-50 dark:bg-[#15161a] border border-stone-200 dark:border-stone-800 text-[11px] text-stone-700 dark:text-stone-300 font-mono whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
+          <pre className="p-3 rounded-xl bg-[#14161f] border border-[#252836] text-[11px] text-stone-300 font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
             {getInviteSnippet()}
           </pre>
         </div>
 
         {/* Experience disclosure */}
-        <div className="p-3 rounded-xl bg-[#d4af37]/10 border border-[#d4af37]/30 text-xs text-stone-700 dark:text-stone-300 flex items-start gap-2.5">
+        <div className="p-3 rounded-xl bg-[#181920] border border-[#d4af37]/30 text-xs text-stone-300 flex items-start gap-2.5">
           <Sparkles className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
-          <p className="leading-normal">
-            <strong>Seamless Guest Experience:</strong> People you share with do not need to invent passwords or accounts. They open the link and immediately see the clear planning board, workstreams, and deliverables for the session.
+          <p className="leading-relaxed">
+            <strong>Cross-Device Live Access:</strong> Anyone opening this link will immediately see this exact project (<strong className="text-white">{project.name}</strong>), all its workstream tracks, and all imported deliverable cards.
           </p>
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-2 flex items-center justify-between border-t border-stone-100 dark:border-stone-800">
+        <div className="pt-2 flex items-center justify-between border-t border-[#1f222c]">
           {activeSession && onEnterSession && (
             <button
               type="button"
@@ -277,7 +314,7 @@ Please review our backlog and join the live session to assess priorities, valida
                 onClose();
                 onEnterSession(activeSession.id);
               }}
-              className="text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 flex items-center gap-1.5"
+              className="text-xs font-semibold text-stone-400 hover:text-white flex items-center gap-1.5"
             >
               <Radio className="w-3.5 h-3.5 text-[#d4af37]" />
               <span>Preview Live Session Room &rarr;</span>
@@ -287,7 +324,7 @@ Please review our backlog and join the live session to assess priorities, valida
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-xs font-bold bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#181a22] hover:bg-[#222530] text-stone-200 border border-[#282c38] transition-colors"
             >
               Done
             </button>

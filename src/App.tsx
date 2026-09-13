@@ -23,6 +23,8 @@ import { CreateSessionModal } from './components/session/CreateSessionModal';
 import { PrdAcceptanceModal } from './components/verification/PrdAcceptanceModal';
 import { AlertTriangle } from 'lucide-react';
 
+import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
+
 export type ActiveView =
   | 'home'
   | 'project_overview'
@@ -78,7 +80,114 @@ export default function App() {
     }
   }, [activeView]);
 
+  const hydrateShareData = async (payload: any): Promise<boolean> => {
+    try {
+      const proj: Project | undefined = payload.project || payload.p;
+      const sess: PlanningSession | undefined = payload.session || payload.s;
+      const projectCards: Card[] = payload.cards || payload.c || [];
+      const role: Role = (payload.role || payload.r || 'contributor') as Role;
+
+      if (!proj || !sess) {
+        showToast('Invalid shared workshop link.');
+        return false;
+      }
+
+      // Save project, cards, and session into client storage
+      await persistenceService.saveProject(proj);
+      if (projectCards && projectCards.length > 0) {
+        await persistenceService.replaceCardsForProject(proj.id, projectCards);
+      }
+      await persistenceService.saveSession(sess);
+
+      const allProjects = await persistenceService.getProjects();
+      const allSessions = await persistenceService.getSessions();
+      const loadedCards = await persistenceService.getCards(proj.id);
+
+      setProjects(allProjects);
+      setSessions(allSessions);
+      setCards(loadedCards);
+      setSelectedProjectId(proj.id);
+      setSelectedSessionId(sess.id);
+      setActiveView('session_room');
+
+      // Set guest contributor persona
+      const guestUser: User = {
+        id: `guest-${Date.now()}`,
+        name: `Guest (${role === 'facilitator' ? 'Facilitator' : 'Contributor'})`,
+        email: 'guest@bananaos.ai',
+        role,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      };
+      authService.setCurrentUser(guestUser);
+      setCurrentUser(guestUser);
+
+      showToast(`✨ Joined live workshop: "${sess.title}" (${proj.name})!`);
+      return true;
+    } catch (err) {
+      console.error('Failed to hydrate share data:', err);
+      showToast('Error opening shared workshop.');
+      return false;
+    }
+  };
+
   const initApp = async () => {
+    // 1. Check for Portable compressed URL Fragment (#workshop=gz... or #pkg=...)
+    if (window.location.hash) {
+      const hashStr = window.location.hash;
+      if (
+        hashStr.includes('workshop=') ||
+        hashStr.includes('pkg=') ||
+        hashStr.includes('gz.') ||
+        hashStr.includes('b64.')
+      ) {
+        const parsed = await parseShareHash(hashStr);
+        if (parsed) {
+          const ok = await hydrateShareData(parsed);
+          if (ok) {
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState(null, '', cleanUrl);
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Check for URL Search Params (?share=WS-..., ?pkg=..., ?join=...)
+    const params = new URLSearchParams(window.location.search);
+    const shareCode = params.get('share');
+    if (shareCode) {
+      try {
+        const res = await fetch(`/api/share/${encodeURIComponent(shareCode)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.project || data.p)) {
+            const ok = await hydrateShareData(data);
+            if (ok) {
+              const cleanUrl = window.location.origin + window.location.pathname;
+              window.history.replaceState(null, '', cleanUrl);
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Share API request failed:', e);
+      }
+    }
+
+    const pkgParam = params.get('pkg') || params.get('workshop');
+    if (pkgParam) {
+      const parsed = await parseShareHash(pkgParam);
+      if (parsed) {
+        const ok = await hydrateShareData(parsed);
+        if (ok) {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState(null, '', cleanUrl);
+          return;
+        }
+      }
+    }
+
+    // 3. Regular stored projects initialization
     let storedProjects = await persistenceService.getProjects();
     if (storedProjects.length === 0) {
       for (const p of SEED_PROJECTS) {
@@ -120,8 +229,7 @@ export default function App() {
     const user = authService.getCurrentUser();
     setCurrentUser(user);
 
-    // Handle URL parameters if invite link was used
-    const params = new URLSearchParams(window.location.search);
+    // Handle legacy join parameter if invite link was used
     const joinCode = params.get('join');
     if (joinCode) {
       handleJoinByCode(joinCode);

@@ -1666,6 +1666,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
           project={project}
           session={session}
           sessions={[session]}
+          cards={cards}
           currentUser={currentUser}
           deliverablesCount={cards.length}
           onClose={() => setShowInviteModal(false)}
