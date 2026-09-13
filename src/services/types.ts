@@ -55,7 +55,8 @@ export interface IPersistenceService {
 
   getAssessments(sessionId: string): Promise<Record<string, SessionAssessment>>;
   getAssessment(sessionId: string, cardId: string): Promise<SessionAssessment | null>;
-  saveAssessment(assessment: SessionAssessment): Promise<{ success: boolean; conflict?: SessionAssessment }>;
+  saveAssessment(assessment: SessionAssessment): Promise<{ success: boolean; conflict?: SessionAssessment; saved?: SessionAssessment }>;
+  applyAssessmentSync(assessment: SessionAssessment): Promise<void>;
 
   getActions(sessionId: string): Promise<FollowUpAction[]>;
   saveAction(action: FollowUpAction): Promise<void>;
@@ -63,6 +64,7 @@ export interface IPersistenceService {
 
   getComments(sessionId: string, cardId: string): Promise<CardComment[]>;
   addComment(comment: Omit<CardComment, 'id' | 'createdAt'>): Promise<CardComment>;
+  applyCommentSync(comment: CardComment): Promise<void>;
 
   getActivityLogs(sessionId: string): Promise<ActivityLog[]>;
   logActivity(log: Omit<ActivityLog, 'id' | 'timestamp'>): Promise<void>;
@@ -76,12 +78,14 @@ export interface IPresenceService {
     sessionId: string,
     onPresenceUpdate: (peers: PresenceState[]) => void,
     onFacilitatorCommand: (cmd: { type: 'bring_everyone' | 'jump'; cardId: string; workstreamId?: string }) => void,
-    onVotingUpdate: (votingState: any) => void
+    onVotingUpdate: (votingState: any) => void,
+    onEntitySync?: (entityType: string, data: any) => void
   ): () => void;
   updateCursor(x: number, y: number): void;
   setActiveCard(cardId?: string, workstreamId?: string): void;
   setFollowingFacilitator(following: boolean): void;
   broadcastBringEveryone(cardId: string, workstreamId?: string): void;
   broadcastVotingState(voting: any): void;
+  broadcastEntitySync(entityType: string, data: any): void;
   getConnectedPeers(): PresenceState[];
 }

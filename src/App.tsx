@@ -145,7 +145,8 @@ export default function App() {
         name: finalName,
         email: 'guest@bananaos.ai',
         role,
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        avatarColor: '#10b981',
+        isVerified: true,
       };
       authService.setCurrentUser(guestUser);
       setCurrentUser(guestUser);
@@ -155,7 +156,7 @@ export default function App() {
       setIsGuestSession(true);
       localStorage.setItem(GUEST_SESSION_KEY, 'true');
 
-      showToast(`✨ Joined live workshop: "${sess.title}" (${proj.name})!`);
+      showToast(`✨ Joined live workshop: "${sess.name}" (${proj.name})!`);
       return true;
     } catch (err) {
       console.error('Failed to hydrate share data:', err);

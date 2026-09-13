@@ -242,6 +242,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
   const cardsRef = useRef(cards);
   const projectRef = useRef(project);
+  const selectedCardIdRef = useRef(selectedCardId);
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -250,6 +251,10 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   useEffect(() => {
     projectRef.current = project;
   }, [project]);
+
+  useEffect(() => {
+    selectedCardIdRef.current = selectedCardId;
+  }, [selectedCardId]);
 
   // Subscribe to Presence & Facilitator Commands
   useEffect(() => {
@@ -280,6 +285,20 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
           persistenceService.saveProject(updatedProj);
           if (onProjectUpdated) {
             onProjectUpdated(updatedProj);
+          }
+        } else if (entityType === 'assessment') {
+          // A peer's disposition/priority/effort/rank/etc. change on a card's
+          // assessment — this is the live sync that was previously missing:
+          // assessments only ever saved to the editor's own browser storage.
+          persistenceService.applyAssessmentSync(data);
+          setAssessments((prev) => ({ ...prev, [data.cardId]: data }));
+        } else if (entityType === 'action') {
+          persistenceService.saveAction(data);
+          setActions((prev) => [...prev.filter((a) => a.id !== data.id), data]);
+        } else if (entityType === 'comment') {
+          persistenceService.applyCommentSync(data);
+          if (data.cardId === selectedCardIdRef.current) {
+            setComments((prev) => (prev.some((c) => c.id === data.id) ? prev : [...prev, data]));
           }
         }
       }
@@ -347,12 +366,17 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
       id: `CARD-${Date.now().toString().substring(5)}`,
       projectId: project.id,
       workstreamId: selectedWorkstreamId,
-      workstreamName: ws?.name,
+      workstreamName: ws?.name || '',
       title: cardTitle,
       description: '',
       currentPriority: 'Unprioritized',
-      status: 'Proposed',
-      tags: [],
+      currentStage: 'Requirements',
+      internalOwner: currentUser.name,
+      deliveryPartnerOwner: '',
+      targetDateOrQuarter: 'TBD',
+      dependencies: '',
+      customFields: {},
+      sourceMeta: {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -408,16 +432,18 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
     if (!res.success && res.conflict) {
       setSaveStatus('conflict');
       setConflictAssessment(res.conflict);
-    } else {
+    } else if (res.saved) {
       setAssessments((prev) => ({
         ...prev,
-        [selectedCard.id]: {
-          ...updated,
-          version: (currentAssessment.version || 0) + 1,
-        },
+        [selectedCard.id]: res.saved!,
       }));
       setSaveStatus('saved');
       setIsEditingDraft(false);
+
+      // Push this decision to every other participant live — this is the
+      // "it should just update automatically" fix: without this broadcast,
+      // the change only ever lived in this one browser's local storage.
+      presenceService.broadcastEntitySync('assessment', res.saved);
 
       // Log activity
       await persistenceService.logActivity({
@@ -454,7 +480,11 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
         workstreamRank: newRankVal + 1,
         lastEditedBy: 'System Auto-reorder',
       };
-      persistenceService.saveAssessment(dupUpdated);
+      persistenceService.saveAssessment(dupUpdated).then((r) => {
+        if (r.success && r.saved) {
+          presenceService.broadcastEntitySync('assessment', r.saved);
+        }
+      });
     }
 
     updateAssessmentField('workstreamRank', newRankVal);
@@ -670,6 +700,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
       content: newCommentText.trim(),
     });
     setComments((prev) => [...prev, newComm]);
+    presenceService.broadcastEntitySync('comment', newComm);
     setNewCommentText('');
   };
 
@@ -689,6 +720,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
     };
     await persistenceService.saveAction(newAct);
     setActions((prev) => [...prev, newAct]);
+    presenceService.broadcastEntitySync('action', newAct);
     setNewActionText('');
   };
 
@@ -904,10 +936,17 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
                 type="button"
                 onClick={() => {
                   // Force save local version with higher revision
-                  persistenceService.saveAssessment({
-                    ...currentAssessment,
-                    version: conflictAssessment.version + 1,
-                  });
+                  persistenceService
+                    .saveAssessment({
+                      ...currentAssessment,
+                      version: conflictAssessment.version + 1,
+                    })
+                    .then((r) => {
+                      if (r.success && r.saved) {
+                        setAssessments((prev) => ({ ...prev, [r.saved!.cardId]: r.saved! }));
+                        presenceService.broadcastEntitySync('assessment', r.saved);
+                      }
+                    });
                   setConflictAssessment(null);
                   setSaveStatus('saved');
                 }}

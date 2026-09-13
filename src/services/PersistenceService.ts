@@ -389,7 +389,7 @@ export class PersistenceService implements IPersistenceService {
 
   async saveAssessment(
     assessment: SessionAssessment
-  ): Promise<{ success: boolean; conflict?: SessionAssessment }> {
+  ): Promise<{ success: boolean; conflict?: SessionAssessment; saved?: SessionAssessment }> {
     const raw = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
     const map: Record<string, SessionAssessment> = raw ? JSON.parse(raw) : {};
     const key = `${assessment.sessionId}:${assessment.cardId}`;
@@ -415,7 +415,36 @@ export class PersistenceService implements IPersistenceService {
 
     return {
       success: true,
+      saved: updated,
     };
+  }
+
+  // Applies an assessment that arrived from a peer via live sync
+  // (PresenceService `entity_sync`). The sender already ran it through
+  // saveAssessment and resolved conflicts on their end, so this just mirrors
+  // their exact result locally — no re-bumping the version, no re-running
+  // conflict detection. The only guard: never let an out-of-order/late
+  // message clobber a newer value this browser already has.
+  async applyAssessmentSync(assessment: SessionAssessment): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.ASSESSMENTS);
+    const map: Record<string, SessionAssessment> = raw ? JSON.parse(raw) : {};
+    const key = `${assessment.sessionId}:${assessment.cardId}`;
+    const existing = map[key];
+
+    if (existing && existing.version > assessment.version) return;
+
+    map[key] = assessment;
+    localStorage.setItem(STORAGE_KEYS.ASSESSMENTS, JSON.stringify(map));
+  }
+
+  // Applies a comment that arrived from a peer via live sync. Comments don't
+  // carry a version, so this is a plain idempotent upsert-by-id.
+  async applyCommentSync(comment: CardComment): Promise<void> {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMMENTS);
+    const all: CardComment[] = raw ? JSON.parse(raw) : [];
+    if (all.some((c) => c.id === comment.id)) return;
+    all.push(comment);
+    localStorage.setItem(STORAGE_KEYS.COMMENTS, JSON.stringify(all));
   }
 
   // ACTIONS

@@ -62,7 +62,7 @@ export const KnockToJoinModal: React.FC<KnockToJoinModalProps> = ({ payload, onA
           
           <h2 className="text-2xl font-bold text-[#EAEAEA] mb-2">Private Workshop</h2>
           <p className="text-sm text-[#A0A0A0] mb-6">
-            You are requesting to join <strong>{sess.title}</strong> hosted in <strong>{proj.name}</strong>.
+            You are requesting to join <strong>{sess.name}</strong> hosted in <strong>{proj.name}</strong>.
             The facilitator must approve your entry.
           </p>
 
