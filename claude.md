@@ -18,7 +18,22 @@ Banana OS is a client-heavy, collaborative product planning and backlog prioriti
 5. **Live Knock-to-Join Authorization**: When guests click a share link, they are intercepted by a \KnockToJoinModal\. Using \socket.io\, they knock on the host's room, and the facilitator can approve or deny their entry in real-time from \SessionRoom.tsx\.
 
 ## Architectural Notes
-- The application relies heavily on \localStorage\ for data persistence.
-- Cross-tab presence (on the same machine) is handled via \BroadcastChannel\ in \PresenceService\.
-- Cross-device live authorization uses \socket.io\ connected to the Express backend.
+- The application relies heavily on `localStorage` for data persistence.
+- Cross-tab presence (on the same machine) is handled via `BroadcastChannel` in `PresenceService`.
+- Cross-device live authorization uses `socket.io` connected to the Express backend.
 - The project is deployed on Render.
+
+## Future Vision: PM & Scrum Master Command Center
+Banana OS is evolving from a workshop facilitation tool into a comprehensive workspace for Product Managers and Scrum Masters. Future feature expansions should align with this vision:
+
+1. **Global Portfolio Dashboard**: 
+   - A cross-project command center providing roll-up metrics, sprint health, and active workstream status across the entire workspace.
+2. **Agile Analytics & Metrics**:
+   - **Velocity**: Tracking completed story points sprint-over-sprint.
+   - **Throughput**: Measuring the raw count of backlog items moving to 'Done'.
+   - **Cycle/Lead Time**: Tracking time-to-completion from backlog entry to execution.
+3. **Execution & Sprint Planning**:
+   - Transitioning prioritized workshop cards into execution phases (Scrum/Kanban boards).
+   - Capacity planning driven by historical velocity.
+4. **Execution Tool Integrations**:
+   - Bidirectional sync with Jira, Azure DevOps, and GitHub Issues. The goal is to run the prioritization and consensus workshops in Banana OS, then seamlessly push finalized sprint commitments to external execution systems.
