@@ -27,22 +27,22 @@ export const SignInScreen: React.FC = () => {
           },
           variables: {
             colorPrimary: '#d4af37',
-            colorBackground: '#16181f',
+            colorBackground: 'transparent',
             colorText: '#e5e7eb',
             colorTextSecondary: '#a8a29e',
-            colorInputBackground: '#1c1e26',
+            colorInputBackground: '#16181f',
             colorInputText: '#e5e7eb',
-            borderRadius: '0.75rem',
+            borderRadius: '0.5rem',
             colorDanger: '#ef4444',
           },
           elements: {
             rootBox: 'w-full mx-auto',
             cardBox: 'w-full shadow-none bg-transparent',
             header: 'hidden',
-            formButtonPrimary: 'bg-[#d4af37] text-[#121318] hover:bg-[#c29e2f] font-bold border border-[#b8952c]',
-            socialButtonsBlockButton: 'bg-[#f8f9fa] hover:bg-[#e2e8f0] border border-[#cbd5e1] text-[#0f172a] shadow-sm',
-            socialButtonsBlockButtonText: 'text-[#0f172a] font-bold',
-            socialButtonsIconButton: 'bg-[#f8f9fa] hover:bg-[#e2e8f0] border border-[#cbd5e1] shadow-sm text-[#0f172a]',
+            formButtonPrimary: 'gold-gradient-btn',
+            socialButtonsBlockButton: 'shadow-sm',
+            socialButtonsBlockButtonText: 'font-bold',
+            socialButtonsIconButton: 'shadow-sm',
             dividerLine: 'bg-[#2e303a]',
             dividerText: 'text-[#94a3b8] font-medium text-xs',
             formFieldLabel: 'text-[#cbd5e1] font-semibold text-sm',
@@ -53,11 +53,6 @@ export const SignInScreen: React.FC = () => {
           },
         }}
       />
-
-      <p className="text-[11px] text-stone-500 mt-5 max-w-sm text-center leading-relaxed mx-auto">
-        Joining a workshop from a shared link? You don't need an account — open
-        the link you were sent and you'll go straight in as a guest.
-      </p>
     </div>
   );
 };

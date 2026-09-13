@@ -73,17 +73,15 @@ code, kbd, samp, pre {
   display: none !important;
 }
 
-.cl-socialButtonsBlockButton,
-.cl-socialButtonsIconButton {
-  background-color: #f8f9fa !important;
+.cl-socialButtonsBlockButton {
+  background-color: #ffffff !important;
   color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
   transition: all 0.2s ease;
 }
 
-.cl-socialButtonsBlockButton:hover,
-.cl-socialButtonsIconButton:hover {
-  background-color: #e2e8f0 !important;
+.cl-socialButtonsBlockButton:hover {
+  background-color: #f1f5f9 !important;
 }
 
 .cl-socialButtonsBlockButtonText {
@@ -91,6 +89,34 @@ code, kbd, samp, pre {
   font-weight: 700 !important;
 }
 
+/* Secondary social buttons (Discord/GitHub) */
+.cl-socialButtonsIconButton {
+  background-color: #1a1b23 !important;
+  color: #ffffff !important;
+  border: 1px solid #2e303a !important;
+  transition: all 0.2s ease;
+}
+
+.cl-socialButtonsIconButton:hover {
+  background-color: #232530 !important;
+  border-color: #3f4250 !important;
+}
+
 .cl-providerIcon__github {
   filter: invert(1) !important;
+}
+
+/* Gold Gradient Button */
+.gold-gradient-btn {
+  background: linear-gradient(180deg, #e5c564 0%, #b8952c 100%) !important;
+  color: #121318 !important;
+  font-weight: 700 !important;
+  border: 1px solid #a38120 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.2s ease !important;
+}
+
+.gold-gradient-btn:hover {
+  background: linear-gradient(180deg, #f0d47d 0%, #c29e2f 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5) !important;
 }

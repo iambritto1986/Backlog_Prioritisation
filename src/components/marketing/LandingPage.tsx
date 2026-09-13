@@ -102,15 +102,42 @@ export const LandingPage: React.FC = () => {
           </div>
 
           {/* Right: sign in, docked to the side */}
-          <div className="w-full lg:sticky lg:top-16">
-            <div className="bg-[#121318] border border-[#1f222c] rounded-2xl p-6 sm:p-8 shadow-2xl">
-              <div className="mb-5">
-                <h2 className="text-lg font-bold text-white">Sign in to your workspace</h2>
-                <p className="text-xs text-stone-500 mt-1">
-                  For facilitators and workspace owners.
+          <div className="w-full lg:sticky lg:top-16 flex flex-col items-center">
+            {/* The Login Card */}
+            <div className="w-full max-w-[420px] bg-[#121318] border border-[#1f222c] rounded-3xl p-8 sm:p-10 shadow-2xl">
+              
+              {/* Custom Header matching the reference */}
+              <div className="flex flex-col items-center text-center mb-8">
+                {/* 3 Gold Circles Logo */}
+                <div className="flex flex-col items-center gap-1 mb-6">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
+                  <div className="flex gap-1">
+                    <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
+                    <div className="w-4 h-4 rounded-full bg-gradient-to-b from-[#e5c564] to-[#b8952c] shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
+                  </div>
+                </div>
+                
+                <h2 className="text-[22px] font-bold text-white mb-2">Welcome to your workspace</h2>
+                <p className="text-[13px] text-stone-400">
+                  Sign in to plan, prioritize, and collaborate.
                 </p>
               </div>
+
               <SignInScreen />
+            </div>
+
+            {/* Guest Entry Note - Outside the card */}
+            <div className="mt-8 flex flex-col items-center text-center max-w-[340px]">
+              <div className="w-8 h-8 rounded-full bg-[#1a1b23] border border-[#2e303a] flex items-center justify-center mb-3">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+              </div>
+              <h3 className="text-[13px] font-bold text-white mb-1.5">Joining a workshop?</h3>
+              <p className="text-[11px] text-stone-500 leading-relaxed">
+                Open your invitation link to join as a guest. No account needed.
+              </p>
             </div>
           </div>
         </div>
