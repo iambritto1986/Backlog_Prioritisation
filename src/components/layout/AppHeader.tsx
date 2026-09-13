@@ -1,8 +1,8 @@
 import React from 'react';
-import { useUser, UserButton } from '@clerk/clerk-react';
+import { useUser, useClerk, UserButton } from '@clerk/clerk-react';
 import {
   ChevronRight,
-  ChevronDown,
+  LogOut,
   Radio,
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
@@ -43,6 +43,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   // to anymore now that auth is real, so the old persona-switcher dropdown
   // that used to list every seed user is gone.
   const { isSignedIn } = useUser();
+  const { signOut } = useClerk();
 
   const project = activeProject || currentProject || null;
   const session = activeSession || currentSession || null;
@@ -122,42 +123,53 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           )}
 
           {/* Identity: Clerk UserButton for real sign-ins, static badge for guests.
-              The avatar itself is the only click target Clerk renders — the
-              chevron here is decorative, just to signal "this opens a menu"
-              (account settings + Sign Out live in that popover). */}
+              Two SEPARATE controls, deliberately: the UserButton avatar opens
+              Clerk's own popover (profile/account management — its internal
+              trigger, not something this file's markup can attach to), and
+              the Sign Out button next to it is a plain <button> wired
+              directly to Clerk's signOut() — no popover, no portal, no
+              click-target guesswork, just an explicit control that always
+              works and is always visible as its own affordance. */}
           {isSignedIn ? (
-            <div
-              className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/60 transition-all shadow-xs"
-              title="Account & sign out"
-            >
-              <UserButton
-                appearance={{
-                  variables: {
-                    colorPrimary: '#d4af37',
-                    colorBackground: '#121318',
-                    colorText: '#e5e7eb',
-                    colorTextSecondary: '#a8a29e',
-                    colorInputBackground: '#18191c',
-                    colorInputText: '#e5e7eb',
-                    borderRadius: '0.75rem',
-                  },
-                  elements: {
-                    avatarBox: 'w-7 h-7',
-                    userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
-                    userButtonPopoverMain: 'bg-[#121318]',
-                    userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
-                    userButtonPopoverActionButtonText: 'text-[#e5e7eb]',
-                    userButtonPopoverActionButtonIcon: 'text-[#a8a29e]',
-                    userButtonPopoverFooter: 'hidden',
-                    userPreviewMainIdentifier: 'text-[#e5e7eb]',
-                    userPreviewSecondaryIdentifier: 'text-[#a8a29e]',
-                  },
-                }}
-              />
-              <span className="font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate text-xs">
-                {currentUser.name}
-              </span>
-              <ChevronDown className="w-3 h-3 text-stone-500" />
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/60 transition-all shadow-xs">
+                <UserButton
+                  appearance={{
+                    variables: {
+                      colorPrimary: '#d4af37',
+                      colorBackground: '#121318',
+                      colorText: '#e5e7eb',
+                      colorTextSecondary: '#a8a29e',
+                      colorInputBackground: '#18191c',
+                      colorInputText: '#e5e7eb',
+                      borderRadius: '0.75rem',
+                    },
+                    elements: {
+                      avatarBox: 'w-7 h-7',
+                      userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
+                      userButtonPopoverMain: 'bg-[#121318]',
+                      userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
+                      userButtonPopoverActionButtonText: 'text-[#e5e7eb]',
+                      userButtonPopoverActionButtonIcon: 'text-[#a8a29e]',
+                      userButtonPopoverFooter: 'hidden',
+                      userPreviewMainIdentifier: 'text-[#e5e7eb]',
+                      userPreviewSecondaryIdentifier: 'text-[#a8a29e]',
+                    },
+                  }}
+                />
+                <span className="font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate text-xs">
+                  {currentUser.name}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                title="Sign out"
+                aria-label="Sign out"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-[#121318] border border-[#1f222c] text-stone-400 hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-500/10 transition-all shadow-xs"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121318] border border-[#1f222c] text-xs text-stone-200 shadow-xs">
