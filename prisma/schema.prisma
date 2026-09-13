@@ -189,6 +189,11 @@ model PlanningSession {
   timeZone        String
   objective       String?
   deliveryHorizon String?
+  // Frontend's SessionAgendaItem[] (src/types.ts) — added when wiring the
+  // real API layer (server.js/api.js) so a session's agenda survives a
+  // server restart instead of only ever living in one browser's
+  // localStorage. Additive column: existing rows just get the default `[]`.
+  agenda          Json         @default("[]")
   stage           SessionStage @default(preparation)
   closedAt        DateTime?
   facilitatorId   String

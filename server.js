@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { clerkMiddleware, requireAuth, getAuth } from '@clerk/express';
+import { apiRouter, joinRouter } from './api.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -182,6 +183,21 @@ app.get('/api/share/:code', (req, res) => {
   res.json(data);
 });
 
+// --- Real backend (Prisma / Postgres) -----------------------------------
+// The first durable persistence layer this app has ever had — see api.js
+// for the full design rationale. Everything under /api/db requires a real
+// Clerk session; the join-by-token endpoint is public (a guest has no
+// account) but rate-limited, same reasoning as /api/share above.
+app.use('/api/db', requireAuth(), apiRouter);
+
+const joinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', joinLimiter, joinRouter);
+
 // App Metadata API
 app.get('/api/info', (req, res) => {
   res.status(200).json({
@@ -282,11 +298,22 @@ io.on('connection', (socket) => {
 // above) instead of accepting `*`, which closes off the room joins to
 // random internet origins. Per-room *authorization* — verifying a given
 // Clerk user actually has a role on the specific sessionId/projectId they're
-// joining, vs. just knowing its ID — still requires a durable place to look
-// that membership up, i.e. the Postgres/Prisma migration (schema already
-// written in prisma/schema.prisma). That's the next phase of work, not part
-// of this change; tracked as the top item in the roadmap handed back to
-// Britto alongside this commit.
+// joining, vs. just knowing its ID — is still open. The durable place to
+// look that membership up now exists (/api/db, backed by the Prisma schema
+// in prisma/schema.prisma), so this is now purely a matter of having socket
+// handlers call it before granting a room join — not blocked on
+// infrastructure anymore, just not wired yet.
+
+// JSON error handler — catches anything passed to next(err) by /api/db or
+// /api/join routes (Zod parse failures, Prisma errors, etc.) so a bug there
+// returns a clean JSON error instead of Express's default HTML error page,
+// and never echoes internals (stack traces, SQL) back to the client.
+app.use((err, req, res, next) => {
+  console.error('API error:', err);
+  if (res.headersSent) return next(err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+});
 
 // Start Express + HTTP Server
 httpServer.listen(PORT, '0.0.0.0', () => {

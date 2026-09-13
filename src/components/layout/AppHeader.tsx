@@ -145,7 +145,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       borderRadius: '0.75rem',
                     },
                     elements: {
+                      // avatarBox alone only sizes the circular image — Clerk's
+                      // own trigger button around it (userButtonBox /
+                      // userButtonTrigger) keeps its default padding and a
+                      // reserved-width layout regardless, which read as a big
+                      // empty gap between the avatar and the name span next to
+                      // it. Zeroing those out makes the button hug the avatar
+                      // exactly, so gap-2 on the parent pill is the only
+                      // spacing between the avatar and the name.
                       avatarBox: 'w-7 h-7',
+                      userButtonBox: 'flex-none w-7 h-7 flex items-center justify-center',
+                      userButtonTrigger: 'p-0 m-0 w-7 h-7 rounded-full focus:shadow-none',
+                      userButtonOuterIdentifier: 'hidden',
                       userButtonPopoverCard: 'bg-[#121318] border border-[#1f222c] shadow-2xl',
                       userButtonPopoverMain: 'bg-[#121318]',
                       userButtonPopoverActionButton: 'text-[#e5e7eb] hover:bg-[#1e202e]',
