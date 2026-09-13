@@ -37,7 +37,8 @@ export const SignInScreen: React.FC = () => {
           },
           elements: {
             rootBox: 'w-full mx-auto',
-            cardBox: 'w-full shadow-none bg-transparent',
+            cardBox: 'w-full shadow-none bg-transparent p-0 border-none',
+            card: 'p-0 bg-transparent shadow-none border-none',
             header: 'hidden',
             formButtonPrimary: 'gold-gradient-btn',
             socialButtonsBlockButton: 'shadow-sm',
@@ -49,7 +50,7 @@ export const SignInScreen: React.FC = () => {
             formFieldInput: 'border-[#2e303a] bg-[#14151b] focus:border-[#d4af37] text-white',
             footerActionText: 'text-[#94a3b8]',
             footerActionLink: 'text-[#d4af37] hover:text-[#c29e2f] font-bold',
-            footer: 'hidden',
+            footer: 'bg-transparent border-none p-0 mt-6',
           },
         }}
       />
