@@ -1,16 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useUser, UserButton } from '@clerk/clerk-react';
 import {
-  ChevronDown,
   ChevronRight,
-  Plus,
   Radio,
-  RotateCcw,
-  CheckCircle2,
-  FolderKanban,
-  Sparkles,
 } from 'lucide-react';
 import { User, Role, Project, PlanningSession } from '../../types';
-import { authService } from '../../services/AuthService';
 import { BananaLogo } from '../common/BananaLogo';
 
 export interface AppHeaderProps {
@@ -32,8 +26,6 @@ export interface AppHeaderProps {
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
   currentUser,
-  onUserChange,
-  onSwitchUser,
   activeProject,
   currentProject,
   activeSession,
@@ -43,18 +35,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onNavigateOverview,
   onNavigateSession,
 }) => {
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const availableUsers = authService.getAvailableUsers();
+  // Real facilitators/owners are signed in via Clerk and get the real
+  // UserButton (profile, sign-out). Guests (joined via a share link, see
+  // App.tsx's auth gate) never have a Clerk session, so they get a plain
+  // badge showing who they're in the room as — there's nothing to "switch"
+  // to anymore now that auth is real, so the old persona-switcher dropdown
+  // that used to list every seed user is gone.
+  const { isSignedIn } = useUser();
 
   const project = activeProject || currentProject || null;
   const session = activeSession || currentSession || null;
   const isInsideProject = activeView !== 'home' && !!project;
-
-  const handleUserSelect = (user: User) => {
-    if (onUserChange) onUserChange(user);
-    if (onSwitchUser) onSwitchUser(user);
-    setShowUserMenu(false);
-  };
 
   const getRoleLabel = (role: Role) => {
     switch (role) {
@@ -116,7 +107,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           )}
         </div>
 
-        {/* Right: Actions & Persona Switcher */}
+        {/* Right: Actions & Identity */}
         <div className="flex items-center gap-3 shrink-0">
           {/* Context Action Button */}
           {isInsideProject && activeView !== 'session_room' && session && (
@@ -129,12 +120,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
           )}
 
-          {/* Persona Switcher Pill */}
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121318] hover:bg-[#1a1b24] border border-[#1f222c] hover:border-[#d4af37]/40 text-xs text-stone-200 transition-all shadow-xs"
-            >
+          {/* Identity: Clerk UserButton for real sign-ins, static badge for guests */}
+          {isSignedIn ? (
+            <div className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full bg-[#121318] border border-[#1f222c] hover:border-[#d4af37]/40 transition-all shadow-xs">
+              <UserButton
+                appearance={{
+                  elements: { avatarBox: 'w-6 h-6' },
+                }}
+              />
+              <span className="font-semibold text-white max-w-[90px] sm:max-w-[120px] truncate text-xs">
+                {currentUser.name}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121318] border border-[#1f222c] text-xs text-stone-200 shadow-xs">
               <div
                 className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shadow-xs"
                 style={{ backgroundColor: currentUser.avatarColor }}
@@ -145,54 +144,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 {currentUser.name}
               </span>
               <span className="text-[10px] text-[#d4af37] hidden md:inline">
-                ({currentUser.role})
+                Guest · {getRoleLabel(currentUser.role)}
               </span>
-              <ChevronDown className="w-3 h-3 text-stone-400" />
-            </button>
-
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-72 bg-[#121318] border border-[#252836] rounded-2xl shadow-2xl py-2 z-50 animate-in zoom-in-95 duration-100">
-                <div className="px-4 py-2 border-b border-[#1f222c]">
-                  <div className="text-xs font-bold text-white">Active Facilitator & Role</div>
-                  <div className="text-[11px] text-stone-400">
-                    Switch persona to test live voting permissions and views.
-                  </div>
-                </div>
-                <div className="py-1">
-                  {availableUsers.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleUserSelect(u)}
-                      className={`w-full text-left px-4 py-2 text-xs flex items-center justify-between hover:bg-[#1a1b24] transition-colors ${
-                        currentUser.id === u.id ? 'bg-[#1a1b24] text-white' : 'text-stone-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-xs"
-                          style={{ backgroundColor: u.avatarColor }}
-                        >
-                          {u.name.charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-white flex items-center gap-1.5">
-                            {u.name}
-                            {u.isVerified && (
-                              <span className="text-[10px] text-emerald-400 font-mono">✓</span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-stone-400">{getRoleLabel(u.role)}</div>
-                        </div>
-                      </div>
-                      {currentUser.id === u.id && (
-                        <CheckCircle2 className="w-4 h-4 text-[#d4af37]" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

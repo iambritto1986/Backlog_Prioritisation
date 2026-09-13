@@ -35,6 +35,47 @@ export class AuthService implements IAuthService {
     return this.users;
   }
 
+  /**
+   * Maps a signed-in Clerk user into this app's User model.
+   *
+   * This is a deliberate stopgap: there is no backend-enforced membership or
+   * role system yet (that lands in the "migrate PersistenceService onto the
+   * real Postgres schema" phase — see prisma/schema.prisma, which already has
+   * a `clerkUserId` column on `users` ready for this). Until that's wired up,
+   * every real signed-in user is treated as a workspace_admin of their own
+   * workspace — reasonable for a single owner/small team using their own
+   * instance, wrong the moment this supports multiple separate workspaces
+   * sharing one deployment. Replace this with a real `users` table lookup
+   * keyed by clerkUserId once that phase lands.
+   *
+   * `clerkUser` is typed loosely (Clerk's UserResource shape) rather than
+   * importing Clerk's types here, to keep this service decoupled from the
+   * auth SDK — only App.tsx (which already depends on @clerk/clerk-react)
+   * needs to know the concrete type.
+   */
+  buildUserFromClerk(clerkUser: {
+    id: string;
+    fullName?: string | null;
+    primaryEmailAddress?: { emailAddress: string } | null;
+    emailAddresses?: { emailAddress: string }[];
+    publicMetadata?: Record<string, unknown>;
+  }): User {
+    const role = (clerkUser.publicMetadata?.role as Role | undefined) || 'workspace_admin';
+    const email =
+      clerkUser.primaryEmailAddress?.emailAddress ||
+      clerkUser.emailAddresses?.[0]?.emailAddress ||
+      '';
+
+    return {
+      id: clerkUser.id,
+      name: clerkUser.fullName || (email ? email.split('@')[0] : 'Team Member'),
+      email,
+      avatarColor: '#d4af37',
+      role,
+      isVerified: true,
+    };
+  }
+
   async signInWithEmail(email: string, name?: string): Promise<{ token: string; requiresVerification: boolean }> {
     const normalized = email.trim().toLowerCase();
     const existing = this.users.find((u) => u.email.toLowerCase() === normalized);

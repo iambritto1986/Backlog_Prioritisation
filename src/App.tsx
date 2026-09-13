@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import {
   Project,
   PlanningSession,
@@ -25,6 +26,7 @@ import { AlertTriangle } from 'lucide-react';
 
 import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
 import { KnockToJoinModal } from './components/session/KnockToJoinModal';
+import { SignInScreen } from './components/auth/SignInScreen';
 
 export type ActiveView =
   | 'home'
@@ -33,6 +35,8 @@ export type ActiveView =
   | 'project_board'
   | 'session_results'
   | 'import_wizard';
+
+const GUEST_SESSION_KEY = 'pp_is_guest_session';
 
 export default function App() {
   // Application Data State
@@ -52,9 +56,16 @@ export default function App() {
   const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  
+
   // Pending share payload for Knock to Join flow
   const [pendingSharePayload, setPendingSharePayload] = useState<any>(null);
+
+  // Auth: guests who arrived via a shared workshop link never touch Clerk at
+  // all (see hydrateShareData below) — everyone else must sign in with Clerk.
+  const [isGuestSession, setIsGuestSession] = useState<boolean>(
+    () => localStorage.getItem(GUEST_SESSION_KEY) === 'true'
+  );
+  const { isSignedIn, isLoaded: isClerkLoaded, user: clerkUser } = useUser();
 
   // Initialize data from Persistence & Auth Services
   useEffect(() => {
@@ -82,6 +93,17 @@ export default function App() {
       localStorage.setItem('pp_active_view', activeView);
     }
   }, [activeView]);
+
+  // Sync the signed-in Clerk identity into the app's User model. Guests
+  // (joined via share link) are handled entirely in hydrateShareData and
+  // never go through this path.
+  useEffect(() => {
+    if (isSignedIn && clerkUser && !isGuestSession) {
+      const mapped = authService.buildUserFromClerk(clerkUser);
+      authService.setCurrentUser(mapped);
+      setCurrentUser(mapped);
+    }
+  }, [isSignedIn, clerkUser?.id, isGuestSession]);
 
   const hydrateShareData = async (payload: any, guestName?: string): Promise<boolean> => {
     try {
@@ -112,7 +134,7 @@ export default function App() {
       setSelectedProjectId(proj.id);
       setSelectedSessionId(sess.id);
       setActiveView('session_room');
-      
+
       // Clear pending payload modal
       setPendingSharePayload(null);
 
@@ -127,6 +149,11 @@ export default function App() {
       };
       authService.setCurrentUser(guestUser);
       setCurrentUser(guestUser);
+
+      // Mark this browser as a guest session so it never gets bounced to the
+      // Clerk sign-in screen — e.g. on a refresh mid-workshop.
+      setIsGuestSession(true);
+      localStorage.setItem(GUEST_SESSION_KEY, 'true');
 
       showToast(`✨ Joined live workshop: "${sess.title}" (${proj.name})!`);
       return true;
@@ -226,7 +253,8 @@ export default function App() {
       setActiveView(savedView);
     }
 
-    // Set auth user
+    // Set auth user (placeholder until the Clerk-sync effect above takes over
+    // for signed-in users, or hydrateShareData takes over for guests)
     const user = authService.getCurrentUser();
     setCurrentUser(user);
 
@@ -717,6 +745,24 @@ export default function App() {
   const currentProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || sessions[0];
   const projectCards = cards.filter((c) => c.projectId === (currentProject?.id || ''));
+
+  // --- Auth gate ---
+  // Real facilitators/workspace owners must sign in with Clerk. Guests who
+  // arrived via a shared workshop link (isGuestSession, or still resolving
+  // one via pendingSharePayload) skip this entirely — see hydrateShareData
+  // above, which is the only place isGuestSession becomes true.
+  if (!isGuestSession && !pendingSharePayload) {
+    if (!isClerkLoaded) {
+      return (
+        <div className="min-h-screen bg-[#0b0c10] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-[#d4af37]/30 border-t-[#d4af37] animate-spin" />
+        </div>
+      );
+    }
+    if (!isSignedIn) {
+      return <SignInScreen />;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0b0c10] text-[#e5e7eb] flex flex-col font-sans selection:bg-[#d4af37]/30 selection:text-[#fcd34d]">

@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { clerkMiddleware, requireAuth, getAuth } from '@clerk/express';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,13 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Clerk: verifies the session token on every request (when present) and
+// makes req.auth available downstream. Reads CLERK_SECRET_KEY and
+// CLERK_PUBLISHABLE_KEY from process.env — both must be set on this service
+// in Render's Environment tab. This alone doesn't block anything; routes opt
+// into requiring a signed-in user with requireAuth() (see /api/me below).
+app.use(clerkMiddleware());
+
 // Health Check API endpoint for Render / monitoring
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -31,7 +39,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Returns the server-verified identity of the signed-in Clerk user.
+// requireAuth() rejects the request (401) before this handler ever runs if
+// the caller doesn't have a valid Clerk session — this is real server-side
+// verification, not a client-side check that a caller could bypass.
+app.get('/api/me', requireAuth(), (req, res) => {
+  const { userId } = getAuth(req);
+  res.json({ userId });
+});
+
 // Shared Workshop In-Memory Storage Cache (for cross-device sharing)
+// NOTE: this is still the same in-memory Map flagged in the code review —
+// it's wiped on every redeploy/restart. Replacing it with a Postgres-backed
+// store is tracked separately (build order phase 4), not part of this change.
 const shareStore = new Map();
 
 app.post('/api/share', (req, res) => {
@@ -159,6 +179,10 @@ io.on('connection', (socket) => {
     socket.to(`session_${sessionId}`).emit('presence_message', payload);
   });
 });
+
+// NOTE: Socket.IO room joins above are not yet authenticated against Clerk —
+// that's a deliberate, separate next step (build order phase 4: "Socket.IO
+// room auth, CORS lockdown, Helmet, rate limiting"), not part of this change.
 
 // Start Express + HTTP Server
 httpServer.listen(PORT, '0.0.0.0', () => {
