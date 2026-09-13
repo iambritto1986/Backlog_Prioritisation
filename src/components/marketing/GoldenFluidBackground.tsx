@@ -32,9 +32,9 @@ export const GoldenFluidBackground: React.FC = () => {
 
     // Orbs simulating the "gold water"
     const orbs = [
-      { radius: 400, color: 'rgba(212, 175, 55, 0.08)', x: 0, y: 0, vx: 1, vy: 0.8 },
-      { radius: 600, color: 'rgba(212, 175, 55, 0.05)', x: 0, y: 0, vx: -0.5, vy: 1.2 },
-      { radius: 300, color: 'rgba(252, 211, 77, 0.07)', x: 0, y: 0, vx: 0.8, vy: -1.1 } // Amberish #fcd34d
+      { radius: 600, color: 'rgba(212, 175, 55, 0.15)', x: 0, y: 0, vx: 1, vy: 0.8 },
+      { radius: 800, color: 'rgba(212, 175, 55, 0.10)', x: 0, y: 0, vx: -0.5, vy: 1.2 },
+      { radius: 500, color: 'rgba(252, 211, 77, 0.12)', x: 0, y: 0, vx: 0.8, vy: -1.1 } // Amberish #fcd34d
     ];
     
     // Initialize random positions
@@ -45,12 +45,10 @@ export const GoldenFluidBackground: React.FC = () => {
 
     const render = () => {
       // Ease mouse
-      mouse.x += (targetMouse.x - mouse.x) * 0.03;
-      mouse.y += (targetMouse.y - mouse.y) * 0.03;
+      mouse.x += (targetMouse.x - mouse.x) * 0.04;
+      mouse.y += (targetMouse.y - mouse.y) * 0.04;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Base very dark bg is handled by CSS, we just draw the fluid lights
       
       // 1. Draw floating ambient orbs
       orbs.forEach((orb, i) => {
@@ -71,10 +69,10 @@ export const GoldenFluidBackground: React.FC = () => {
         ctx.fill();
       });
 
-      // 2. Draw mouse interactive glow
-      const mouseGrad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 500);
-      mouseGrad.addColorStop(0, 'rgba(212, 175, 55, 0.12)'); // #d4af37
-      mouseGrad.addColorStop(0.4, 'rgba(212, 175, 55, 0.03)');
+      // 2. Draw mouse interactive glow - much stronger gold!
+      const mouseGrad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 600);
+      mouseGrad.addColorStop(0, 'rgba(212, 175, 55, 0.25)'); // #d4af37
+      mouseGrad.addColorStop(0.4, 'rgba(212, 175, 55, 0.10)');
       mouseGrad.addColorStop(1, 'rgba(0,0,0,0)');
 
       ctx.fillStyle = mouseGrad;

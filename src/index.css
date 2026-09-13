@@ -67,3 +67,30 @@ code, kbd, samp, pre {
   color: #e5e7eb;
   border-color: #3b4052;
 }
+
+/* Force Clerk Widget Styling Overrides */
+.cl-header {
+  display: none !important;
+}
+
+.cl-socialButtonsBlockButton,
+.cl-socialButtonsIconButton {
+  background-color: #f8f9fa !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  transition: all 0.2s ease;
+}
+
+.cl-socialButtonsBlockButton:hover,
+.cl-socialButtonsIconButton:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.cl-socialButtonsBlockButtonText {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+.cl-providerIcon__github {
+  filter: invert(1) !important;
+}
