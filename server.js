@@ -143,6 +143,21 @@ io.on('connection', (socket) => {
     io.to(guestId).emit('knock_rejected', { sessionId });
     console.log(`Guest ${guestId} rejected for session ${sessionId}`);
   });
+
+  // --- Real-Time Multiplayer Sync ---
+  socket.on('join_session_room', ({ sessionId, userId }) => {
+    socket.join(`session_${sessionId}`);
+    console.log(`User ${userId} joined session room ${sessionId}`);
+  });
+
+  socket.on('leave_session_room', ({ sessionId, userId }) => {
+    socket.leave(`session_${sessionId}`);
+    socket.to(`session_${sessionId}`).emit('presence_message', { type: 'peer_leave', userId });
+  });
+
+  socket.on('presence_message', ({ sessionId, payload }) => {
+    socket.to(`session_${sessionId}`).emit('presence_message', payload);
+  });
 });
 
 // Start Express + HTTP Server

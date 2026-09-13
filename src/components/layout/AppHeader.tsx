@@ -28,7 +28,6 @@ export interface AppHeaderProps {
   onNavigateSession?: () => void;
   onNavigateResults?: () => void;
   onOpenImport?: () => void;
-  onResetData?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -43,7 +42,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onNavigateHome,
   onNavigateOverview,
   onNavigateSession,
-  onResetData,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const availableUsers = authService.getAvailableUsers();
@@ -195,17 +193,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </div>
             )}
           </div>
-
-          {/* Reset Demo Data Button */}
-          {onResetData && (
-            <button
-              onClick={onResetData}
-              className="p-2 rounded-full bg-[#121318] hover:bg-[#1a1b24] text-stone-400 hover:text-[#fcd34d] border border-[#1f222c] transition-colors"
-              title="Reset sample projects & workshop data"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
     </header>

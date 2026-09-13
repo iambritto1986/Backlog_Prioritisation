@@ -1,25 +1,26 @@
 import { PresenceState } from '../types';
 import { IPresenceService } from './types';
 import { authService } from './AuthService';
-import { SEED_USERS } from '../data/seedData';
+import { io, Socket } from 'socket.io-client';
 
 type MessagePayload =
   | { type: 'presence_heartbeat'; state: PresenceState }
   | { type: 'cursor_move'; userId: string; cursor: { x: number; y: number } }
   | { type: 'bring_everyone'; cardId: string; workstreamId?: string; sender: string }
   | { type: 'voting_state'; voting: any }
-  | { type: 'peer_leave'; userId: string };
+  | { type: 'peer_leave'; userId: string }
+  | { type: 'entity_sync'; entityType: string; data: any };
 
 export class PresenceService implements IPresenceService {
-  private channel: BroadcastChannel | null = null;
+  private socket: Socket | null = null;
   private currentSessionId: string | null = null;
   private myState: PresenceState;
   private peers: Map<string, PresenceState> = new Map();
   private onPresenceUpdateCb?: (peers: PresenceState[]) => void;
   private onFacilitatorCommandCb?: (cmd: { type: 'bring_everyone' | 'jump'; cardId: string; workstreamId?: string }) => void;
   private onVotingUpdateCb?: (votingState: any) => void;
+  private onEntitySyncCb?: (entityType: string, data: any) => void;
   private heartbeatInterval?: any;
-  private simulationInterval?: any;
 
   constructor() {
     const user = authService.getCurrentUser();
@@ -30,41 +31,42 @@ export class PresenceService implements IPresenceService {
       avatarColor: user.avatarColor,
       isOnline: true,
       lastSeen: Date.now(),
-      followingFacilitator: false,
+      followingFacilitator: true, // Default to true!
     };
-
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        this.channel = new BroadcastChannel('product_planner_presence');
-        this.channel.onmessage = this.handleBroadcastMessage.bind(this);
-      } catch (err) {
-        console.warn('BroadcastChannel not available, using in-memory presence fallback', err);
-      }
-    }
   }
 
   subscribe(
     sessionId: string,
     onPresenceUpdate: (peers: PresenceState[]) => void,
     onFacilitatorCommand: (cmd: { type: 'bring_everyone' | 'jump'; cardId: string; workstreamId?: string }) => void,
-    onVotingUpdate: (votingState: any) => void
+    onVotingUpdate: (votingState: any) => void,
+    onEntitySync?: (entityType: string, data: any) => void
   ): () => void {
     this.currentSessionId = sessionId;
     this.onPresenceUpdateCb = onPresenceUpdate;
     this.onFacilitatorCommandCb = onFacilitatorCommand;
     this.onVotingUpdateCb = onVotingUpdate;
+    this.onEntitySyncCb = onEntitySync;
 
     const user = authService.getCurrentUser();
     this.myState.userId = user.id;
     this.myState.userName = user.name;
     this.myState.role = user.role;
     this.myState.avatarColor = user.avatarColor;
+    
+    // Auto-follow facilitator if guest
+    this.myState.followingFacilitator = user.role !== 'facilitator';
 
-    // Add initial simulated peers so the collaborative workspace has active presence
-    this.initSimulatedPeers(user.id);
+    this.socket = io(window.location.origin);
+    
+    this.socket.on('connect', () => {
+      this.socket?.emit('join_session_room', { sessionId, userId: this.myState.userId });
+      this.broadcast({ type: 'presence_heartbeat', state: this.myState });
+    });
 
-    // Send initial heartbeat
-    this.broadcast({ type: 'presence_heartbeat', state: this.myState });
+    this.socket.on('presence_message', (payload: MessagePayload) => {
+      this.handleSocketMessage(payload);
+    });
 
     // Periodic heartbeat
     this.heartbeatInterval = setInterval(() => {
@@ -73,61 +75,21 @@ export class PresenceService implements IPresenceService {
       this.cleanStalePeers();
     }, 4000);
 
-    // Subtle simulation of peer activity (cursor drift & reading cards)
-    this.startPeerSimulation();
-
     // Initial trigger
     this.notifyPeers();
 
     return () => {
       clearInterval(this.heartbeatInterval);
-      clearInterval(this.simulationInterval);
-      this.broadcast({ type: 'peer_leave', userId: this.myState.userId });
+      if (this.socket) {
+        this.socket.emit('leave_session_room', { sessionId: this.currentSessionId, userId: this.myState.userId });
+        this.socket.disconnect();
+        this.socket = null;
+      }
       this.peers.clear();
     };
   }
 
-  private initSimulatedPeers(currentUserId: string) {
-    const peersToInit = SEED_USERS.filter((u) => u.id !== currentUserId).slice(0, 3);
-    const sampleCards = ['AVM-101', 'AVM-201', 'AVM-301', 'AVM-401'];
-
-    peersToInit.forEach((user, idx) => {
-      this.peers.set(user.id, {
-        userId: user.id,
-        userName: user.name,
-        role: user.role,
-        avatarColor: user.avatarColor,
-        activeCardId: sampleCards[idx % sampleCards.length],
-        cursor: { x: 300 + idx * 180, y: 220 + idx * 60 },
-        isOnline: true,
-        lastSeen: Date.now(),
-        followingFacilitator: true,
-      });
-    });
-  }
-
-  private startPeerSimulation() {
-    let tick = 0;
-    this.simulationInterval = setInterval(() => {
-      tick++;
-      // Gently drift simulated peers' cursors or active viewing cards
-      this.peers.forEach((peer) => {
-        if (peer.userId.startsWith('user-') && peer.userId !== this.myState.userId) {
-          if (peer.cursor) {
-            peer.cursor = {
-              x: Math.max(100, Math.min(1000, peer.cursor.x + (Math.sin(tick * 0.4) * 12))),
-              y: Math.max(120, Math.min(700, peer.cursor.y + (Math.cos(tick * 0.3) * 8))),
-            };
-          }
-          peer.lastSeen = Date.now();
-        }
-      });
-      this.notifyPeers();
-    }, 3500);
-  }
-
-  private handleBroadcastMessage(event: MessageEvent<MessagePayload>) {
-    const data = event.data;
+  private handleSocketMessage(data: MessagePayload) {
     if (!data) return;
 
     if (data.type === 'presence_heartbeat') {
@@ -160,16 +122,19 @@ export class PresenceService implements IPresenceService {
       if (this.onVotingUpdateCb) {
         this.onVotingUpdateCb(data.voting);
       }
+    } else if (data.type === 'entity_sync') {
+      if (this.onEntitySyncCb) {
+        this.onEntitySyncCb(data.entityType, data.data);
+      }
     }
   }
 
   private broadcast(payload: MessagePayload) {
-    if (this.channel) {
-      try {
-        this.channel.postMessage(payload);
-      } catch (err) {
-        // channel may be closed
-      }
+    if (this.socket && this.socket.connected && this.currentSessionId) {
+      this.socket.emit('presence_message', {
+        sessionId: this.currentSessionId,
+        payload
+      });
     }
   }
 
@@ -208,6 +173,14 @@ export class PresenceService implements IPresenceService {
     this.broadcast({
       type: 'voting_state',
       voting,
+    });
+  }
+  
+  broadcastEntitySync(entityType: string, data: any): void {
+    this.broadcast({
+      type: 'entity_sync',
+      entityType,
+      data
     });
   }
 

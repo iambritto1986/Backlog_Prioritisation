@@ -1,0 +1,305 @@
+// Banana OS — Prisma schema
+// Mechanical translation of src/types.ts into real Postgres tables.
+// This file lives at prisma/schema.prisma in the actual project.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  workspace_admin
+  project_lead
+  facilitator
+  editor
+  contributor
+  viewer
+}
+
+enum Priority {
+  P0
+  P1
+  P2
+  P3
+  Unprioritized
+}
+
+enum BusinessValue {
+  High
+  Medium
+  Low
+  Unknown
+}
+
+enum Impact {
+  High
+  Medium
+  Low
+  Unknown
+}
+
+enum Urgency {
+  High
+  Medium
+  Low
+  Unknown
+}
+
+enum Effort {
+  Small
+  Medium
+  Large
+  Unknown
+}
+
+enum WorkshopDisposition {
+  Selected
+  Reserve
+  Defer
+  Drop
+  NeedsValidation
+  NotDiscussed
+}
+
+enum SessionStage {
+  preparation
+  live
+  review
+  closed
+  reopened
+}
+
+enum FollowUpStatus {
+  open
+  in_progress
+  completed
+}
+
+model Workspace {
+  id                     String    @id @default(cuid())
+  name                   String
+  organization           String
+  allowGuestInvites      Boolean   @default(true)
+  requireEmailVerification Boolean @default(false)
+  defaultRole            Role      @default(contributor)
+  createdAt              DateTime  @default(now())
+
+  users    User[]
+  projects Project[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  // Clerk is the source of truth for auth; this mirrors the Clerk user id
+  // so the rest of the schema can foreign-key against a stable local id.
+  clerkUserId String?  @unique
+  name        String
+  email       String   @unique
+  avatarColor String   @default("#d97706")
+  role        Role     @default(contributor)
+  isVerified  Boolean  @default(false)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  createdAt   DateTime @default(now())
+
+  facilitatedSessions PlanningSession[] @relation("SessionFacilitator")
+  comments            CardComment[]
+  activityLogs        ActivityLog[]
+
+  @@map("users")
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+  name            String
+  description     String
+  targetHorizon   String
+  impactLabelName String   @default("Customer Impact")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workstreams Workstream[]
+  cards       Card[]
+  sessions    PlanningSession[]
+
+  @@map("projects")
+}
+
+model Workstream {
+  id           String  @id @default(cuid())
+  projectId    String
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  leadName     String
+  leadEmail    String?
+  displayOrder Int     @default(0)
+  color        String?
+
+  cards Card[]
+
+  @@map("workstreams")
+}
+
+model Card {
+  id                       String   @id @default(cuid())
+  projectId                String
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workstreamId             String
+  workstream               Workstream @relation(fields: [workstreamId], references: [id])
+  title                    String
+  description              String
+  currentPriority          Priority @default(Unprioritized)
+  currentStage             String
+  internalOwner            String
+  internalOwnerEmail       String?
+  isInternalOwnerLinked    Boolean  @default(false)
+  deliveryPartnerOwner     String?
+  deliveryPartnerOwnerEmail String?
+  isDeliveryPartnerOwnerLinked Boolean @default(false)
+  targetDateOrQuarter      String?
+  dependencies             String?
+  storyPoints              Int?
+  customFields             Json     @default("{}")
+  sourceMeta               Json     @default("{}")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  assessments SessionAssessment[]
+  actions     FollowUpAction[]
+  comments    CardComment[]
+
+  @@index([projectId])
+  @@map("cards")
+}
+
+model PlanningSession {
+  id              String       @id @default(cuid())
+  projectId       String
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  date            DateTime
+  timeZone        String
+  objective       String?
+  deliveryHorizon String?
+  stage           SessionStage @default(preparation)
+  closedAt        DateTime?
+  facilitatorId   String
+  facilitator     User         @relation("SessionFacilitator", fields: [facilitatorId], references: [id])
+  activeCardId    String?
+  activeWorkstreamId String?
+  isVotingActive  Boolean      @default(false)
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Server-issued, time-limited token guests use to join without an account.
+  joinToken       String?      @unique
+  joinTokenExpiresAt DateTime?
+
+  assessments SessionAssessment[]
+  actions     FollowUpAction[]
+  comments    CardComment[]
+  logs        ActivityLog[]
+  snapshots   VersionSnapshot[]
+
+  @@index([projectId])
+  @@map("planning_sessions")
+}
+
+model VersionSnapshot {
+  id              String   @id @default(cuid())
+  sessionId       String
+  session         PlanningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  version         Int
+  closedAt        DateTime
+  closedBy        String
+  summary         String?
+  assessmentsCount Int
+  selectedCount   Int
+  actionsCount    Int
+  dataSnapshot    Json
+
+  @@map("version_snapshots")
+}
+
+model SessionAssessment {
+  id              String              @id @default(cuid())
+  sessionId       String
+  session         PlanningSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cardId          String
+  card            Card                @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  proposedPriority Priority           @default(Unprioritized)
+  businessValue   BusinessValue       @default(Unknown)
+  memberImpact    Impact              @default(Unknown)
+  urgency         Urgency             @default(Unknown)
+  effort          Effort              @default(Unknown)
+  storyPoints     Int?
+  workstreamRank  Int?
+  decision        WorkshopDisposition @default(NotDiscussed)
+  milestoneOutcome String?
+  teamRationale   String?
+  validationNeeds String?
+  lastEditedBy    String
+  lastEditedAt    DateTime            @updatedAt
+  version         Int                 @default(1)
+
+  @@unique([sessionId, cardId])
+  @@map("session_assessments")
+}
+
+model FollowUpAction {
+  id        String         @id @default(cuid())
+  sessionId String
+  session   PlanningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cardId    String
+  card      Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  action    String
+  owner     String
+  dueDate   DateTime?
+  status    FollowUpStatus @default(open)
+  createdAt DateTime       @default(now())
+
+  @@map("follow_up_actions")
+}
+
+model CardComment {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    PlanningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  authorRole Role
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime?
+  parentId   String?
+  isImported Boolean  @default(false)
+
+  @@map("card_comments")
+}
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       PlanningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  cardId        String?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  action        String
+  field         String?
+  previousValue String?
+  newValue      String?
+  timestamp     DateTime @default(now())
+
+  @@map("activity_logs")
+}

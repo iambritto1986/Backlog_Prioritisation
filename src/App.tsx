@@ -51,7 +51,6 @@ export default function App() {
   // Modals
   const [showCreateSessionModal, setShowCreateSessionModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   // Pending share payload for Knock to Join flow
@@ -264,13 +263,6 @@ export default function App() {
     authService.setCurrentUser(user);
     setCurrentUser(user);
     showToast(`Active persona switched to ${user.name} (${user.role})`);
-  };
-
-  // Reset to default seed data
-  const handleResetData = async () => {
-    await persistenceService.resetToDefaults();
-    await initApp();
-    showToast('Reset workspace data to PRD defaults.');
   };
 
   // Toggle Theme
@@ -765,7 +757,6 @@ export default function App() {
         onNavigateResults={() => setActiveView('session_results')}
         onOpenImport={() => setActiveView('import_wizard')}
         onOpenVerification={() => setShowVerificationModal(true)}
-        onResetData={() => setShowResetModal(true)}
         onSwitchUser={handleSwitchUser}
         onToggleTheme={handleToggleTheme}
       />
@@ -838,6 +829,9 @@ export default function App() {
             onNavigateOverview={() => setActiveView('project_overview')}
             onSessionUpdated={(updated) => {
               setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+            }}
+            onProjectUpdated={(updated) => {
+              setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
             }}
             onCardsUpdated={(updated) => setCards(updated)}
             onNavigateToResults={() => setActiveView('session_results')}
@@ -916,44 +910,6 @@ export default function App() {
         <PrdAcceptanceModal onClose={() => setShowVerificationModal(false)} />
       )}
 
-      {/* Reset Confirmation Modal */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#121318] border border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-[#e5e7eb] animate-in zoom-in-95 duration-100">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Reset All Workspace Data?</h3>
-                <p className="text-xs text-stone-400">Restores PRD factory defaults</p>
-              </div>
-            </div>
-            <p className="text-xs text-stone-300 leading-relaxed">
-              This will permanently remove any imported spreadsheets, custom workstreams, deliverables, and live workshop assessments, resetting back to the initial sample dataset.
-            </p>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1f222c]">
-              <button
-                type="button"
-                onClick={() => setShowResetModal(false)}
-                className="px-4 py-2 rounded-xl bg-[#1a1b24] hover:bg-[#222430] text-xs font-semibold text-stone-300 border border-[#2a2d3d] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setShowResetModal(false);
-                  await handleResetData();
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg transition-colors"
-              >
-                Yes, Reset All Data
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

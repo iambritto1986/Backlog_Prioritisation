@@ -68,6 +68,7 @@ interface SessionRoomProps {
   onNavigateHome?: () => void;
   onNavigateOverview?: () => void;
   onSessionUpdated: (updated: PlanningSession) => void;
+  onProjectUpdated?: (project: Project) => void;
   onCardsUpdated: (cards: Card[]) => void;
   onNavigateToResults: () => void;
 }
@@ -80,6 +81,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   onNavigateHome,
   onNavigateOverview,
   onSessionUpdated,
+  onProjectUpdated,
   onCardsUpdated,
   onNavigateToResults,
 }) => {
@@ -96,7 +98,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [peers, setPeers] = useState<PresenceState[]>([]);
   const [followingFacilitator, setFollowingFacilitator] = useState<boolean>(
-    currentUser.id !== session.facilitatorId
+    currentUser.role !== 'facilitator'
   );
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [filterDisposition, setFilterDisposition] = useState<string>('all');
@@ -226,6 +228,29 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
     }
   };
 
+  // Refs to avoid socket cycling
+  const followFacilitatorRef = useRef(followingFacilitator);
+  const isEditingDraftRef = useRef(isEditingDraft);
+  
+  useEffect(() => {
+    followFacilitatorRef.current = followingFacilitator;
+  }, [followingFacilitator]);
+
+  useEffect(() => {
+    isEditingDraftRef.current = isEditingDraft;
+  }, [isEditingDraft]);
+
+  const cardsRef = useRef(cards);
+  const projectRef = useRef(project);
+
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
+
+  useEffect(() => {
+    projectRef.current = project;
+  }, [project]);
+
   // Subscribe to Presence & Facilitator Commands
   useEffect(() => {
     const unsubscribe = presenceService.subscribe(
@@ -235,20 +260,35 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
       },
       (cmd) => {
         // Facilitator command received!
-        if (followingFacilitator && !isEditingDraft) {
+        if (followFacilitatorRef.current && !isEditingDraftRef.current) {
           if (cmd.workstreamId) setSelectedWorkstreamId(cmd.workstreamId);
           if (cmd.cardId) setSelectedCardId(cmd.cardId);
         }
       },
       (votingState) => {
         setActiveVoting(votingState);
+      },
+      (entityType, data) => {
+        if (entityType === 'card') {
+          persistenceService.saveCards([data]);
+          onCardsUpdated([...cardsRef.current.filter(c => c.id !== data.id), data]);
+        } else if (entityType === 'workstream') {
+          const updatedProj = {
+            ...projectRef.current,
+            workstreams: [...projectRef.current.workstreams.filter(ws => ws.id !== data.id), data]
+          };
+          persistenceService.saveProject(updatedProj);
+          if (onProjectUpdated) {
+            onProjectUpdated(updatedProj);
+          }
+        }
       }
     );
 
     return () => {
       unsubscribe();
     };
-  }, [session.id, followingFacilitator, isEditingDraft]);
+  }, [session.id]);
 
   // Update active card in presence
   useEffect(() => {
@@ -266,6 +306,64 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
       const y = Math.round(e.clientY - rect.top);
       presenceService.updateCursor(x, y);
     }
+  };
+
+  // Quick add helpers for real-time collaboration
+  const handleQuickAddWorkstream = async () => {
+    const wsName = prompt('Enter name for the new Workstream track:');
+    if (!wsName?.trim()) return;
+
+    const newWs = {
+      id: `ws-${Date.now()}`,
+      projectId: project.id,
+      name: wsName,
+      leadName: currentUser.name,
+      color: '#d4af37',
+      displayOrder: project.workstreams.length + 1,
+    };
+
+    const updatedProj = { ...project, workstreams: [...project.workstreams, newWs] };
+    await persistenceService.saveProject(updatedProj);
+    
+    if (onProjectUpdated) {
+      onProjectUpdated(updatedProj);
+    }
+    
+    presenceService.broadcastEntitySync('workstream', newWs);
+  };
+
+  const handleQuickAddCard = async () => {
+    if (!selectedWorkstreamId) {
+      alert('Please select a workstream track first.');
+      return;
+    }
+    
+    const cardTitle = prompt('Enter title for the new Deliverable:');
+    if (!cardTitle?.trim()) return;
+    
+    const ws = project.workstreams.find(w => w.id === selectedWorkstreamId);
+
+    const newCard: Card = {
+      id: `CARD-${Date.now().toString().substring(5)}`,
+      projectId: project.id,
+      workstreamId: selectedWorkstreamId,
+      workstreamName: ws?.name,
+      title: cardTitle,
+      description: '',
+      currentPriority: 'Unprioritized',
+      status: 'Proposed',
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await persistenceService.saveCards([newCard]);
+    const updatedCards = [...cards, newCard];
+    onCardsUpdated(updatedCards);
+    
+    setSelectedCardId(newCard.id);
+    
+    presenceService.broadcastEntitySync('card', newCard);
   };
 
   // Active card and assessment helpers
@@ -1005,9 +1103,22 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
           {/* Workstreams List with Discussed Counts */}
           <div className="p-4 border-b border-stone-200 dark:border-stone-800 space-y-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
-              Workstreams ({project.workstreams.length})
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                Workstreams ({project.workstreams.length})
+              </span>
+              {isFacilitator && (
+                <button
+                  type="button"
+                  onClick={handleQuickAddWorkstream}
+                  className="p-1 rounded bg-stone-100 dark:bg-[#282a35] hover:bg-stone-200 dark:hover:bg-stone-750 text-stone-700 dark:text-stone-300 text-[10px] font-bold flex items-center gap-0.5 transition-colors"
+                  title="Add a new workstream track"
+                >
+                  <Plus className="w-3 h-3 text-[#d4af37]" />
+                  <span>Track</span>
+                </button>
+              )}
+            </div>
 
             <div className="space-y-1.5">
               {project.workstreams.map((ws) => {
@@ -1111,6 +1222,17 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
             {/* Filter tabs & Search */}
             <div className="flex items-center gap-2">
+              {isFacilitator && (
+                <button
+                  type="button"
+                  onClick={handleQuickAddCard}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#d4af37] text-xs font-bold transition-colors border border-[#d4af37]/30"
+                  title="Add a new deliverable to this workstream"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Deliverable</span>
+                </button>
+              )}
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
                 <input
