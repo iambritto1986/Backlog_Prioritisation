@@ -392,7 +392,17 @@ apiRouter.post('/projects', async (req, res, next) => {
 
     const project = await prisma.project.upsert({
       where: { id: id || '__none__' },
-      create: { ...fields, workspaceId: workspace.id },
+      // Must keep `id` here: the frontend generates its own project id
+      // (`proj-${Date.now()}`) up front and immediately uses it for the
+      // session and every imported card *before* this response ever comes
+      // back (see App.tsx's handleImportComplete). Omitting it let Prisma's
+      // @default(cuid()) mint a different id than the one the client had
+      // already committed to, so every following write keyed on the
+      // client's id (saveSession, replaceCardsForProject) hit a foreign-key
+      // violation against a project row that existed under a different id,
+      // silently fell back to local storage, and left the real backend
+      // with a correctly-named project/workstreams but zero cards.
+      create: { ...fields, id, workspaceId: workspace.id },
       update: fields,
     });
 
@@ -404,7 +414,11 @@ apiRouter.post('/projects', async (req, res, next) => {
       const { id: wId, ...wFields } = w;
       await prisma.workstream.upsert({
         where: { id: wId || '__none__' },
-        create: { ...wFields, projectId: project.id },
+        // Same fix as the project upsert above: keep the client-supplied
+        // workstream id so cards whose workstreamId was computed
+        // client-side (ExcelImportWizard / App.tsx) actually match a real
+        // row instead of a freshly auto-generated one.
+        create: { ...wFields, id: wId, projectId: project.id },
         update: wFields,
       });
     }
