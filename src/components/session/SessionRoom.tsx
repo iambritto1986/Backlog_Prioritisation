@@ -58,12 +58,16 @@ import { io, Socket } from 'socket.io-client';
 import { ShareSessionModal } from './ShareSessionModal';
 import { LiveVotingModal } from './LiveVotingModal';
 import { StartVotingLauncherModal } from './StartVotingLauncherModal';
+import { SessionClosedFeedback } from './SessionClosedFeedback';
 
 interface SessionRoomProps {
   session: PlanningSession;
   project: Project;
   cards: Card[];
   currentUser: User;
+  // True for a guest who joined via a share link — no path back to the
+  // multi-project workspace dashboard, only this project and its session.
+  isGuest?: boolean;
   onNavigateHome?: () => void;
   onNavigateOverview?: () => void;
   onSessionUpdated: (updated: PlanningSession) => void;
@@ -77,6 +81,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   project,
   cards,
   currentUser,
+  isGuest,
   onNavigateHome,
   onNavigateOverview,
   onSessionUpdated,
@@ -126,6 +131,16 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   const [quickAddMode, setQuickAddMode] = useState<'workstream' | 'card' | null>(null);
   const [quickAddValue, setQuickAddValue] = useState('');
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
+
+  // Per-card edit/delete, live in the working session (not just the
+  // read-only Details tab) — every participant can restructure or reword a
+  // card, not just add new ones.
+  const [cardToEdit, setCardToEdit] = useState<Card | null>(null);
+  const [editCardTitle, setEditCardTitle] = useState('');
+  const [editCardDesc, setEditCardDesc] = useState('');
+  const [editCardOwner, setEditCardOwner] = useState('');
+  const [editCardEta, setEditCardEta] = useState('');
+  const [cardToDelete, setCardToDelete] = useState<Card | null>(null);
 
   // Conflict state
   const [conflictAssessment, setConflictAssessment] = useState<SessionAssessment | null>(null);
@@ -286,6 +301,11 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
         if (entityType === 'card') {
           persistenceService.saveCards([data]);
           onCardsUpdated([...cardsRef.current.filter(c => c.id !== data.id), data]);
+        } else if (entityType === 'card_deleted') {
+          // A peer deleted a card via the card list's trash icon — see
+          // handleConfirmDeleteCard below.
+          persistenceService.deleteCard(data.id);
+          onCardsUpdated(cardsRef.current.filter((c) => c.id !== data.id));
         } else if (entityType === 'workstream') {
           const updatedProj = {
             ...projectRef.current,
@@ -309,6 +329,14 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
           if (data.cardId === selectedCardIdRef.current) {
             setComments((prev) => (prev.some((c) => c.id === data.id) ? prev : [...prev, data]));
           }
+        } else if (entityType === 'session') {
+          // Facilitator closed or reopened the session from Results &
+          // Export (see SessionResults.tsx's handleToggleClose). Without
+          // this, a participant sitting right here in the live room saw
+          // nothing at all when the session closed — the board just sat
+          // there as if it were still active.
+          persistenceService.saveSession(data);
+          onSessionUpdated(data);
         }
       }
     );
@@ -420,6 +448,55 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
     setQuickAddMode(null);
     setQuickAddValue('');
+  };
+
+  // Per-card edit — opens the small edit modal below, prefilled from the
+  // card as it stands right now.
+  const handleOpenEditCard = (card: Card) => {
+    setCardToEdit(card);
+    setEditCardTitle(card.title);
+    setEditCardDesc(card.description);
+    setEditCardOwner(card.internalOwner);
+    setEditCardEta(card.targetDateOrQuarter);
+  };
+
+  const handleSaveCardEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cardToEdit || !editCardTitle.trim()) return;
+
+    const updated: Card = {
+      ...cardToEdit,
+      title: editCardTitle.trim(),
+      description: editCardDesc.trim(),
+      internalOwner: editCardOwner.trim() || 'TBD',
+      targetDateOrQuarter: editCardEta.trim() || cardToEdit.targetDateOrQuarter,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await persistenceService.saveCard(updated);
+    onCardsUpdated([...cards.filter((c) => c.id !== updated.id), updated]);
+    presenceService.broadcastEntitySync('card', updated);
+    setCardToEdit(null);
+  };
+
+  // Per-card delete — confirm modal below, then removes it for everyone
+  // live in the room (see the 'card_deleted' branch in the entity_sync
+  // handler above).
+  const handleConfirmDeleteCard = async () => {
+    if (!cardToDelete) return;
+    const deletedId = cardToDelete.id;
+
+    await persistenceService.deleteCard(deletedId);
+    onCardsUpdated(cards.filter((c) => c.id !== deletedId));
+    presenceService.broadcastEntitySync('card_deleted', { id: deletedId });
+
+    if (selectedCardId === deletedId) {
+      const remaining = cards.filter(
+        (c) => c.id !== deletedId && c.workstreamId === selectedWorkstreamId
+      );
+      setSelectedCardId(remaining[0]?.id || '');
+    }
+    setCardToDelete(null);
   };
 
   // Active card and assessment helpers
@@ -781,6 +858,29 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   // Viewers currently on active card
   const activeCardViewers = peers.filter((p) => p.activeCardId === selectedCardId);
 
+  // Once the facilitator closes the session (see SessionResults.tsx /
+  // the 'session' entity_sync branch above), a participant sitting right
+  // here in the live room should not just keep looking at a frozen board —
+  // route them to the same thank-you + feedback screen non-facilitators
+  // get when they reach Results & Export after close. Facilitators keep
+  // seeing the live room (their own closed-state controls live on the
+  // Results & Export page instead).
+  if (!isFacilitator && session.stage === 'closed') {
+    const selectedCount = Object.values(assessments).filter((a) => a.decision === 'Selected').length;
+    return (
+      <div className="h-[calc(100vh-3.5rem)] overflow-y-auto bg-[#faf9f5] dark:bg-[#18191c] text-stone-900 dark:text-stone-100">
+        <SessionClosedFeedback
+          session={session}
+          project={project}
+          totalCards={cards.length}
+          selectedCount={selectedCount}
+          actionsCount={actions.length}
+          onBackToSession={onNavigateOverview || onNavigateHome || (() => {})}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden bg-[#faf9f5] dark:bg-[#18191c] text-stone-900 dark:text-stone-100">
       {/* Top Workshop Header Shell */}
@@ -789,7 +889,7 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
         <div className="flex items-center gap-3">
           {/* Quick Breadcrumbs */}
           <div className="flex items-center gap-1 text-xs text-stone-400 border-r border-stone-800 pr-3 mr-1">
-            {onNavigateHome && (
+            {onNavigateHome && !isGuest && (
               <button
                 type="button"
                 onClick={onNavigateHome}
@@ -910,14 +1010,19 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
             <span>Share Session</span>
           </button>
 
-          {/* Review Results */}
-          <button
-            onClick={onNavigateToResults}
-            className="flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 transition-colors shadow-xs"
-          >
-            <span>Results & Export</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          {/* Review Results — facilitator tool: full outcome report, CSV/
+              HTML export, and Close/Reopen Session live in here. A
+              contributor's own read of "how did this go" is the
+              closed-session thank-you screen above, not this page. */}
+          {isFacilitator && (
+            <button
+              onClick={onNavigateToResults}
+              className="flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 transition-colors shadow-xs"
+            >
+              <span>Results & Export</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1362,17 +1467,17 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
 
             {/* Filter tabs & Search */}
             <div className="flex items-center gap-2">
-              {isFacilitator && (
-                <button
-                  type="button"
-                  onClick={handleQuickAddCard}
-                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#d4af37] text-xs font-bold transition-colors border border-[#d4af37]/30"
-                  title="Add a new deliverable to this workstream"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Deliverable</span>
-                </button>
-              )}
+              {/* Adding a deliverable is a collaborative action, same as
+                  editing/deleting one below — not facilitator-gated. */}
+              <button
+                type="button"
+                onClick={handleQuickAddCard}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#d4af37] text-xs font-bold transition-colors border border-[#d4af37]/30"
+                title="Add a new deliverable to this workstream"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Deliverable</span>
+              </button>
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
                 <input
@@ -1484,6 +1589,31 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
                             Rank #{a.workstreamRank}
                           </span>
                         )}
+
+                        {/* Edit / Delete — collaborative, like adding a
+                            deliverable: anyone in the room can restructure
+                            or reword a card, not just the facilitator. */}
+                        <div
+                          className="ml-auto flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditCard(card)}
+                            className="p-1 rounded text-stone-400 hover:text-[#d4af37] hover:bg-[#d4af37]/10 transition-colors"
+                            title="Edit this deliverable"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCardToDelete(card)}
+                            className="p-1 rounded text-stone-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                            title="Delete this deliverable"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <h4 className="font-bold text-sm text-stone-900 dark:text-stone-100">
@@ -2063,6 +2193,132 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
               >
                 <Plus className="w-4 h-4" />
                 <span>{quickAddMode === 'workstream' ? 'Add Track' : 'Add Deliverable'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Deliverable Modal — reachable from the pencil icon on any
+          card in the center list. */}
+      {cardToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#1c1e24] border-2 border-[#d4af37]/60 rounded-2xl max-w-md w-full p-6 text-stone-100 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/50 flex items-center justify-center text-[#d4af37]">
+                  <Edit3 className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Edit Deliverable</h3>
+                  <span className="text-[11px] font-mono text-stone-500">{cardToEdit.id}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setCardToEdit(null)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4 rotate-45" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCardEdit} className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-stone-300">Title</label>
+                <input
+                  autoFocus
+                  type="text"
+                  required
+                  value={editCardTitle}
+                  onChange={(e) => setEditCardTitle(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#16181e] border border-stone-700 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#d4af37]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-stone-300">Description / Scope</label>
+                <textarea
+                  rows={3}
+                  value={editCardDesc}
+                  onChange={(e) => setEditCardDesc(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#16181e] border border-stone-700 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#d4af37] resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-stone-300">Owner</label>
+                  <input
+                    type="text"
+                    value={editCardOwner}
+                    onChange={(e) => setEditCardOwner(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#16181e] border border-stone-700 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#d4af37]"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-stone-300">Target Date/Quarter</label>
+                  <input
+                    type="text"
+                    value={editCardEta}
+                    onChange={(e) => setEditCardEta(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#16181e] border border-stone-700 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-[#d4af37]"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCardToEdit(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editCardTitle.trim()}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#d4af37] hover:bg-[#c59e2b] disabled:opacity-40 disabled:cursor-not-allowed text-neutral-950 text-xs font-bold shadow-md transition-colors"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Deliverable Confirm Modal */}
+      {cardToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#1c1e24] border-2 border-rose-500/50 rounded-2xl max-w-sm w-full p-6 text-stone-100 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Deliverable</h3>
+                <p className="text-xs text-stone-400">This removes it for everyone in the room.</p>
+              </div>
+            </div>
+            <p className="text-xs text-stone-400">
+              Delete <strong className="text-stone-200">"{cardToDelete.title}"</strong> ({cardToDelete.id})? This can't be undone.
+            </p>
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCardToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCard}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
               </button>
             </div>
           </div>

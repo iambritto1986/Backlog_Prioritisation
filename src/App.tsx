@@ -26,6 +26,7 @@ import { AlertTriangle } from 'lucide-react';
 
 import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
 import { KnockToJoinModal } from './components/session/KnockToJoinModal';
+import { SessionExpiredScreen } from './components/session/SessionExpiredScreen';
 import { LandingPage } from './components/marketing/LandingPage';
 
 export type ActiveView =
@@ -59,6 +60,14 @@ export default function App() {
 
   // Pending share payload for Knock to Join flow
   const [pendingSharePayload, setPendingSharePayload] = useState<any>(null);
+
+  // Set when a ?join=<token> link points at a session the facilitator has
+  // already closed — shows SessionExpiredScreen instead of the normal
+  // knock-to-join flow (see initApp's join-token handling below).
+  const [sessionExpiredInfo, setSessionExpiredInfo] = useState<{
+    sessionName?: string;
+    projectName?: string;
+  } | null>(null);
 
   // Auth: guests who arrived via a shared workshop link never touch Clerk at
   // all (see hydrateShareData below) — everyone else must sign in with Clerk.
@@ -148,7 +157,11 @@ export default function App() {
       setCards(loadedCards);
       setSelectedProjectId(proj.id);
       setSelectedSessionId(sess.id);
-      setActiveView('session_room');
+      // Land on the project page first — backlog, visual board,
+      // facilitation studio, workstream tracks — not straight into the
+      // live room. "Join Session Room" / "View Session Room" from there
+      // both still route into SessionRoom via onEnterSession.
+      setActiveView('project_overview');
 
       // Clear pending payload modal
       setPendingSharePayload(null);
@@ -171,7 +184,7 @@ export default function App() {
       setIsGuestSession(true);
       localStorage.setItem(GUEST_SESSION_KEY, 'true');
 
-      showToast(`✨ Joined live workshop: "${sess.name}" (${proj.name})!`);
+      showToast(`✨ Joined "${proj.name}" — workshop session "${sess.name}" is ready when you are.`);
       return true;
     } catch (err) {
       console.error('Failed to hydrate share data:', err);
@@ -237,6 +250,12 @@ export default function App() {
           }
         } else {
           const body = await res.json().catch(() => ({}));
+          if (body.sessionClosed) {
+            setSessionExpiredInfo({ sessionName: body.sessionName, projectName: body.projectName });
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState(null, '', cleanUrl);
+            return;
+          }
           showToast(body.error || 'This invitation link is no longer valid.');
         }
       } catch (e) {
@@ -800,6 +819,18 @@ export default function App() {
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || sessions[0];
   const projectCards = cards.filter((c) => c.projectId === (currentProject?.id || ''));
 
+  // A closed-session share link takes priority over everything else below —
+  // whoever opened it isn't signed in and has no existing guest session, so
+  // this has to be checked before the Clerk auth gate.
+  if (sessionExpiredInfo) {
+    return (
+      <SessionExpiredScreen
+        sessionName={sessionExpiredInfo.sessionName}
+        projectName={sessionExpiredInfo.projectName}
+      />
+    );
+  }
+
   // --- Auth gate ---
   // Real facilitators/workspace owners must sign in with Clerk. Guests who
   // arrived via a shared workshop link (isGuestSession, or still resolving
@@ -898,6 +929,7 @@ export default function App() {
             cards={projectCards}
             sessions={sessions.filter((s) => s.projectId === currentProject.id)}
             currentUser={currentUser}
+            isGuest={isGuestSession}
             onNavigateHome={() => setActiveView('home')}
             onDeleteProject={handleDeleteProject}
             onEnterSession={(sessId) => {
@@ -925,6 +957,7 @@ export default function App() {
             project={currentProject}
             cards={projectCards}
             currentUser={currentUser}
+            isGuest={isGuestSession}
             onNavigateHome={() => setActiveView('home')}
             onNavigateOverview={() => setActiveView('project_overview')}
             onSessionUpdated={(updated) => {

@@ -7,10 +7,13 @@ import {
   FollowUpAction,
   ActivityLog,
   CardComment,
+  SessionFeedback,
   User,
   WorkshopDisposition,
 } from '../../types';
 import { persistenceService } from '../../services/PersistenceService';
+import { presenceService } from '../../services/PresenceService';
+import { SessionClosedFeedback } from '../session/SessionClosedFeedback';
 import {
   exportSessionToExcel,
   exportSessionToHtml,
@@ -41,6 +44,7 @@ import {
   Share2,
   ExternalLink,
   ChevronDown,
+  Smile,
 } from 'lucide-react';
 
 interface SessionResultsProps {
@@ -72,22 +76,48 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [feedback, setFeedback] = useState<SessionFeedback[]>([]);
+
+  const isFacilitator =
+    currentUser.id === session.facilitatorId ||
+    currentUser.role === 'facilitator' ||
+    currentUser.role === 'project_lead' ||
+    currentUser.role === 'workspace_admin';
 
   useEffect(() => {
     loadData();
   }, [session.id]);
 
+  // Hold a live presence connection for this session while this page is
+  // open. SessionRoom disconnects its own socket on unmount before this
+  // page ever mounts, so without a connection of our own here,
+  // presenceService.broadcastEntitySync() below would silently no-op (no
+  // active socket) — which was the root cause of a facilitator's
+  // Close Session not reaching anyone still sitting in the live room. We
+  // don't need presence/voting updates here, just the socket.
+  useEffect(() => {
+    const unsubscribe = presenceService.subscribe(
+      session.id,
+      () => {},
+      () => {},
+      () => {}
+    );
+    return unsubscribe;
+  }, [session.id]);
+
   const loadData = async () => {
-    const [aMap, acts, logs, comms] = await Promise.all([
+    const [aMap, acts, logs, comms, fb] = await Promise.all([
       persistenceService.getAssessments(session.id),
       persistenceService.getActions(session.id),
       persistenceService.getActivityLogs(session.id),
       persistenceService.getAllSessionComments(session.id),
+      persistenceService.getSessionFeedback(session.id),
     ]);
     setAssessments(aMap);
     setActions(acts);
     setActivityLogs(logs);
     setComments(comms);
+    setFeedback(fb);
   };
 
   const cardMap = new Map<string, Card>(cards.map((c) => [c.id, c]));
@@ -102,6 +132,10 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
   const needsValCount = assessmentList.filter((a) => a.decision === 'Needs Validation').length;
   const parkingLotCount = assessmentList.filter((a) => a.decision === 'Parking Lot').length;
   const notDiscussedCount = totalCards - (selectedCount + reserveCount + deferCount + dropCount + needsValCount + parkingLotCount);
+
+  // Anonymous post-close participant feedback (see SessionClosedFeedback.tsx)
+  const avgFeedbackRating =
+    feedback.length > 0 ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length : null;
 
   // Validation needs items
   const validationItems = assessmentList.filter((a) => a.validationNeeds && a.validationNeeds.trim());
@@ -156,17 +190,32 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
     }
   };
 
-  // Close Session / Lock against further edits
-  const handleToggleClose = () => {
-    const newStage = session.stage === 'closed' ? 'live' : 'closed';
-    const updated: PlanningSession = {
-      ...session,
-      stage: newStage,
-      version: session.version + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    persistenceService.saveSession(updated);
-    onSessionUpdated(updated);
+  // Close Session / Lock against further edits. Previously this just
+  // flipped session.stage via a plain saveSession() — the dedicated
+  // closeSession/reopenSession API endpoints (which archive a proper
+  // VersionSnapshot and stamp closedAt) already existed end-to-end but the
+  // button here never actually called them. Wired up for real now, since
+  // "Close Session" is exactly the moment participants get routed to the
+  // SessionClosedFeedback screen below — it should mean something.
+  const handleToggleClose = async () => {
+    if (session.stage === 'closed') {
+      const updated = await persistenceService.reopenSession(session.id);
+      onSessionUpdated(updated);
+      // Push the reopen live to anyone still in the SessionRoom — see the
+      // 'session' branch in SessionRoom.tsx's onEntitySync handler.
+      presenceService.broadcastEntitySync('session', updated);
+    } else {
+      const summary = `${selectedCount} of ${totalCards} deliverables selected; ${actions.length} follow-up action(s) captured.`;
+      await persistenceService.closeSession(session.id, currentUser.name, summary);
+      const fresh = await persistenceService.getSession(session.id);
+      if (fresh) {
+        onSessionUpdated(fresh);
+        // This is the fix for participants seeing nothing happen when a
+        // facilitator closes a live session: broadcast it so SessionRoom
+        // can route them to the closed/feedback screen in real time.
+        presenceService.broadcastEntitySync('session', fresh);
+      }
+    }
   };
 
   const handleCopyMarkdownSummary = () => {
@@ -193,6 +242,22 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
     });
     exportFilteredCsv(`${session.name.replace(/\s+/g, '_')}_Comments`, headers, rows);
   };
+
+  // Once a session is closed, participants (everyone except the
+  // facilitator) get a light thank-you + anonymous feedback screen instead
+  // of the full report/export view below — that stays facilitator-only.
+  if (!isFacilitator && session.stage === 'closed') {
+    return (
+      <SessionClosedFeedback
+        session={session}
+        project={project}
+        totalCards={totalCards}
+        selectedCount={selectedCount}
+        actionsCount={actions.length}
+        onBackToSession={onBackToSession}
+      />
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -263,13 +328,15 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
             Download Excel (.xlsx)
           </button>
 
-          <button
-            onClick={handleToggleClose}
-            className="p-2 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 text-xs font-semibold"
-            title={session.stage === 'closed' ? 'Re-open session' : 'Close and lock session'}
-          >
-            {session.stage === 'closed' ? 'Reopen Session' : 'Close Session'}
-          </button>
+          {isFacilitator && (
+            <button
+              onClick={handleToggleClose}
+              className="p-2 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 text-xs font-semibold"
+              title={session.stage === 'closed' ? 'Re-open session' : 'Close and lock session'}
+            >
+              {session.stage === 'closed' ? 'Reopen Session' : 'Close Session'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -323,6 +390,34 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
           <div className="text-[10px] text-stone-400 mt-0.5">Of {totalCards} Total</div>
         </div>
       </div>
+
+      {/* Anonymous participant feedback — only submittable once the session
+          is closed (see SessionClosedFeedback.tsx), so this stays quiet
+          until then. */}
+      {session.stage === 'closed' && (
+        <div className="bg-white dark:bg-[#20222a] border border-stone-200 dark:border-[#2e303a] rounded-2xl p-5 shadow-xs flex items-center gap-4">
+          <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/30 shrink-0">
+            <Smile className="w-5 h-5 text-[#d4af37]" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-stone-900 dark:text-stone-100">
+              {avgFeedbackRating !== null ? (
+                <>
+                  {avgFeedbackRating.toFixed(1)} / 5 average{' '}
+                  <span className="font-normal text-stone-500 dark:text-stone-400">
+                    ({feedback.length} response{feedback.length === 1 ? '' : 's'})
+                  </span>
+                </>
+              ) : (
+                'No participant feedback yet'
+              )}
+            </div>
+            <div className="text-[11px] text-stone-500 dark:text-stone-400">
+              Anonymous 1-5 rating shown to participants after close
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action Items, Validation Needs & Stakeholder Comments Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

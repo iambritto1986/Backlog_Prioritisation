@@ -50,6 +50,11 @@ interface ProjectOverviewProps {
   cards?: Card[];
   sessions?: PlanningSession[];
   currentUser: User;
+  // True for a guest who joined via a share link — restricted to this one
+  // project's overview page (backlog/board/facilitation studio/workstream
+  // tracks) and the session room, per Britto's spec; no path back to the
+  // multi-project workspace dashboard.
+  isGuest?: boolean;
   onNavigateHome?: () => void;
   onDeleteProject?: (projectId: string) => void;
   onEnterSession: (sessionId: string) => void;
@@ -72,6 +77,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   cards: initialCards,
   sessions: initialSessions,
   currentUser,
+  isGuest,
   onNavigateHome,
   onDeleteProject,
   onEnterSession,
@@ -200,6 +206,14 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   ).length;
 
   const upcomingSession = sessions.find((s) => s.stage === 'live') || sessions[0];
+
+  // Deleting a project is a workspace-owner-level action, not something a
+  // session guest/contributor should ever see — guests always join with
+  // role 'contributor' (or whatever a share link explicitly grants, never
+  // workspace_admin/project_lead), so gating on role here also happens to
+  // be exactly the guest gate.
+  const canDeleteProject =
+    currentUser.role === 'workspace_admin' || currentUser.role === 'project_lead';
 
   // Filtering cards for both Board & Table
   const filteredCards = cards.filter((card) => {
@@ -454,8 +468,10 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Breadcrumb row */}
-      {onNavigateHome && (
+      {/* Breadcrumb row — hidden entirely for guests: no path back to the
+          multi-project workspace dashboard, per Britto's spec ("that's the
+          only thing they should be allowed to view"). */}
+      {onNavigateHome && !isGuest && (
         <div className="flex items-center justify-between pb-1">
           <button
             type="button"
@@ -466,7 +482,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
             <span>Back to Workspace</span>
           </button>
 
-          {onDeleteProject && (
+          {onDeleteProject && canDeleteProject && (
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}

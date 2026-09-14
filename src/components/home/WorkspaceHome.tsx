@@ -52,6 +52,14 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<PlanningSession | null>(null);
 
+  // Deleting a project is a workspace-owner-level action, not something a
+  // session guest/contributor should ever see — guests always join with
+  // role 'contributor' (or whatever a share link explicitly grants, never
+  // workspace_admin/project_lead), so gating on role here also happens to
+  // be exactly the guest gate.
+  const canDeleteProject =
+    currentUser.role === 'workspace_admin' || currentUser.role === 'project_lead';
+
   // Form State for Create Project
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
@@ -316,7 +324,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
                       <ChevronRight className="w-3.5 h-3.5 text-[#d4af37]" />
                     </button>
 
-                    {onDeleteProject && (
+                    {onDeleteProject && canDeleteProject && (
                       <button
                         type="button"
                         onClick={(e) => {

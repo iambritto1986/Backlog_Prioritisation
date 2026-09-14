@@ -9,6 +9,7 @@ import {
   VersionSnapshot,
   Workstream,
   WorkspacePlanStatus,
+  SessionFeedback,
 } from '../types';
 import { IPersistenceService } from './types';
 import {
@@ -28,6 +29,7 @@ const STORAGE_KEYS = {
   ACTIONS: 'pp_actions_v1',
   COMMENTS: 'pp_comments_v1',
   LOGS: 'pp_logs_v1',
+  FEEDBACK: 'pp_feedback_v1',
 };
 
 // ---------------------------------------------------------------------------
@@ -365,6 +367,27 @@ class LocalPersistenceService implements IPersistenceService {
     session.updatedAt = new Date().toISOString();
     await this.saveSession(session);
     return session;
+  }
+
+  // POST-CLOSE FEEDBACK
+  async getSessionFeedback(sessionId: string): Promise<SessionFeedback[]> {
+    const raw = localStorage.getItem(STORAGE_KEYS.FEEDBACK);
+    const all: SessionFeedback[] = raw ? JSON.parse(raw) : [];
+    return all.filter((f) => f.sessionId === sessionId);
+  }
+
+  async submitSessionFeedback(sessionId: string, rating: number): Promise<SessionFeedback> {
+    const raw = localStorage.getItem(STORAGE_KEYS.FEEDBACK);
+    const all: SessionFeedback[] = raw ? JSON.parse(raw) : [];
+    const entry: SessionFeedback = {
+      id: `fb-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      sessionId,
+      rating,
+      submittedAt: new Date().toISOString(),
+    };
+    all.push(entry);
+    localStorage.setItem(STORAGE_KEYS.FEEDBACK, JSON.stringify(all));
+    return entry;
   }
 
   // ASSESSMENTS
@@ -721,6 +744,15 @@ class ApiPersistenceService implements IPersistenceService {
     return apiFetch(`/sessions/${sessionId}/reopen`, j({}));
   }
 
+  // POST-CLOSE FEEDBACK
+  async getSessionFeedback(sessionId: string): Promise<SessionFeedback[]> {
+    return apiFetch(`/sessions/${sessionId}/feedback`);
+  }
+
+  async submitSessionFeedback(sessionId: string, rating: number): Promise<SessionFeedback> {
+    return apiFetch(`/sessions/${sessionId}/feedback`, j({ rating }));
+  }
+
   // WORKSTREAMS
   async deleteWorkstream(projectId: string, workstreamId: string): Promise<void> {
     await apiFetch(`/projects/${projectId}/workstreams/${workstreamId}`, { method: 'DELETE' });
@@ -1020,6 +1052,13 @@ export class PersistenceService implements IPersistenceService {
   }
   async reopenSession(sessionId: string): Promise<PlanningSession> {
     return this.withFallback((s) => s.reopenSession(sessionId), 'reopenSession');
+  }
+
+  async getSessionFeedback(sessionId: string): Promise<SessionFeedback[]> {
+    return this.withFallback((s) => s.getSessionFeedback(sessionId), 'getSessionFeedback');
+  }
+  async submitSessionFeedback(sessionId: string, rating: number): Promise<SessionFeedback> {
+    return this.withFallback((s) => s.submitSessionFeedback(sessionId, rating), 'submitSessionFeedback');
   }
 
   // WORKSTREAMS

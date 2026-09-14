@@ -246,9 +246,26 @@ model PlanningSession {
   comments    CardComment[]
   logs        ActivityLog[]
   snapshots   VersionSnapshot[]
+  feedback    SessionFeedback[]
 
   @@index([projectId])
   @@map("planning_sessions")
+}
+
+// Post-close participant feedback: a single 1-5 smiley rating, deliberately
+// anonymous (no userId/authorName) so people in a session with their own
+// manager/facilitator present rate honestly. Shown only to participants
+// once a session is closed (see SessionClosedFeedback.tsx); the facilitator
+// sees the aggregate on SessionResults instead of individual responses.
+model SessionFeedback {
+  id          String          @id @default(cuid())
+  sessionId   String
+  session     PlanningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rating      Int // 1-5
+  submittedAt DateTime        @default(now())
+
+  @@index([sessionId])
+  @@map("session_feedback")
 }
 
 model VersionSnapshot {

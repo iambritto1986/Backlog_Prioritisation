@@ -222,6 +222,16 @@ export interface VersionSnapshot {
   };
 }
 
+// Post-close participant feedback: one anonymous 1-5 smiley rating per
+// submission (see SessionClosedFeedback.tsx). No userId/authorName by
+// design — see the model comment in schema.prisma.
+export interface SessionFeedback {
+  id: string;
+  sessionId: string;
+  rating: number; // 1-5
+  submittedAt: string;
+}
+
 export interface PlanningSession {
   id: string;
   projectId: string;

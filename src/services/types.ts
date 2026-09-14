@@ -13,6 +13,7 @@ import {
   Role,
   Workstream,
   WorkspacePlanStatus,
+  SessionFeedback,
 } from '../types';
 
 export interface IAuthService {
@@ -50,6 +51,9 @@ export interface IPersistenceService {
   duplicateSession(sessionId: string): Promise<PlanningSession>;
   closeSession(sessionId: string, closedBy: string, summary: string): Promise<VersionSnapshot>;
   reopenSession(sessionId: string): Promise<PlanningSession>;
+
+  getSessionFeedback(sessionId: string): Promise<SessionFeedback[]>;
+  submitSessionFeedback(sessionId: string, rating: number): Promise<SessionFeedback>;
 
   deleteWorkstream(projectId: string, workstreamId: string): Promise<void>;
   updateWorkstream(projectId: string, workstream: Workstream): Promise<void>;

@@ -156,6 +156,15 @@ function serializeSession(s) {
   };
 }
 
+function serializeFeedback(f) {
+  return {
+    id: f.id,
+    sessionId: f.sessionId,
+    rating: f.rating,
+    submittedAt: iso(f.submittedAt),
+  };
+}
+
 function serializeSnapshot(v) {
   return {
     version: v.version,
@@ -841,6 +850,39 @@ apiRouter.post('/sessions/:id/reopen', async (req, res, next) => {
   }
 });
 
+// --- Post-close participant feedback ------------------------------------
+// Deliberately anonymous (no userId captured) — see the model comment in
+// schema.prisma. One participant can submit more than once (e.g. if they
+// change their mind); no dedupe, since there's no identity to dedupe on.
+const feedbackInput = z.object({ rating: z.number().int().min(1).max(5) });
+
+apiRouter.post('/sessions/:id/feedback', async (req, res, next) => {
+  try {
+    const parsed = feedbackInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid feedback payload', details: parsed.error.issues });
+    }
+    const feedback = await prisma.sessionFeedback.create({
+      data: { sessionId: req.params.id, rating: parsed.data.rating },
+    });
+    res.status(201).json(serializeFeedback(feedback));
+  } catch (err) {
+    next(err);
+  }
+});
+
+apiRouter.get('/sessions/:id/feedback', async (req, res, next) => {
+  try {
+    const rows = await prisma.sessionFeedback.findMany({
+      where: { sessionId: req.params.id },
+      orderBy: { submittedAt: 'asc' },
+    });
+    res.json(rows.map(serializeFeedback));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Durable share links -----------------------------------------------
 // Replaces the in-memory `shareStore` Map that used to live in server.js —
 // that Map was wiped on every redeploy/restart, so a link a facilitator
@@ -1228,6 +1270,20 @@ joinRouter.get('/join/:token', async (req, res, next) => {
     });
     if (!session || (session.joinTokenExpiresAt && session.joinTokenExpiresAt < new Date())) {
       return res.status(404).json({ error: 'Invitation link not found or expired' });
+    }
+
+    // A closed session isn't an invalid link — the facilitator may reopen
+    // it later — but there's nothing for a new guest to join right now.
+    // Flagged separately (sessionClosed: true) so the frontend can show a
+    // clear "this session has ended" screen instead of a generic
+    // invalid-link error, and so this doesn't count against the guest cap.
+    if (session.stage === 'closed') {
+      return res.status(410).json({
+        error: 'This session has ended.',
+        sessionClosed: true,
+        sessionName: session.name,
+        projectName: session.project?.name,
+      });
     }
 
     // Enforce the per-session guest cap (default 25 — see Workspace.maxSessionGuests).
