@@ -1246,28 +1246,97 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
             <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" /> Parking Lot
             </span>
+            {/* Static legend, not just a hover tooltip — this section is
+                often visible on a shared screen during a live workshop,
+                where nobody's going to hover to find out what each status
+                means. */}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[9px] text-stone-500 dark:text-stone-500">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                Parking Lot: set aside for later
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />
+                Needs Validation: info missing
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-stone-400 shrink-0" />
+                Defer: postponed
+              </span>
+            </div>
             <div className="space-y-1.5">
               {cards
                 .filter((c) => {
                   const a = assessments[c.id];
-                  return a && (a.decision === 'Needs Validation' || a.decision === 'Defer');
+                  // 'Parking Lot' was added as its own WorkshopDisposition
+                  // value (distinct from Defer/Needs Validation — see its
+                  // own violet badge color below) but this filter was never
+                  // updated to include it, so cards explicitly parked here
+                  // never actually showed up in the Parking Lot list.
+                  return (
+                    a &&
+                    (a.decision === 'Needs Validation' ||
+                      a.decision === 'Defer' ||
+                      a.decision === 'Parking Lot')
+                  );
                 })
                 .slice(0, 4)
-                .map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedWorkstreamId(c.workstreamId);
-                      setSelectedCardId(c.id);
-                    }}
-                    className="w-full text-left p-2 rounded bg-stone-50 dark:bg-[#18191c] border border-stone-200 dark:border-stone-800 text-[11px] text-stone-700 dark:text-stone-300 hover:border-amber-400 truncate"
-                  >
-                    <div className="font-semibold truncate">{c.title}</div>
-                    <div className="text-[10px] text-amber-600 dark:text-amber-400">
-                      {assessments[c.id]?.decision}
-                    </div>
-                  </button>
-                ))}
+                .map((c) => {
+                  const decision = assessments[c.id]?.decision;
+                  // This list bundles three different dispositions under one
+                  // "Parking Lot" heading, but they don't mean the same
+                  // thing — without a visual cue distinguishing them, every
+                  // entry just read as an undifferentiated amber label.
+                  // Color-code each one (matching the badge colors already
+                  // used for the same three values in the main card list
+                  // below) and explain the difference on hover, since there
+                  // isn't room to spell it out inline in a narrow sidebar.
+                  const DECISION_META: Record<
+                    string,
+                    { dot: string; text: string; title: string }
+                  > = {
+                    'Needs Validation': {
+                      dot: 'bg-orange-500',
+                      text: 'text-orange-600 dark:text-orange-400',
+                      title:
+                        'Needs Validation: missing info or an unresolved question is blocking a decision on this card.',
+                    },
+                    Defer: {
+                      dot: 'bg-stone-400',
+                      text: 'text-stone-600 dark:text-stone-400',
+                      title:
+                        'Defer: postponed to a later phase — not in scope for this delivery horizon.',
+                    },
+                    'Parking Lot': {
+                      dot: 'bg-violet-500',
+                      text: 'text-violet-600 dark:text-violet-400',
+                      title:
+                        'Parking Lot: explicitly set aside for later discussion, outside the current workshop flow.',
+                    },
+                  };
+                  const meta = decision ? DECISION_META[decision] : undefined;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedWorkstreamId(c.workstreamId);
+                        setSelectedCardId(c.id);
+                      }}
+                      title={meta?.title}
+                      className="w-full text-left p-2 rounded bg-stone-50 dark:bg-[#18191c] border border-stone-200 dark:border-stone-800 text-[11px] text-stone-700 dark:text-stone-300 hover:border-amber-400 truncate"
+                    >
+                      <div className="font-semibold truncate">{c.title}</div>
+                      <div
+                        className={`flex items-center gap-1 text-[10px] font-semibold ${
+                          meta?.text || 'text-amber-600 dark:text-amber-400'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta?.dot || 'bg-amber-500'}`} />
+                        <span className="truncate">{decision}</span>
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </div>
         </div>
