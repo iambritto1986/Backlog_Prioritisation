@@ -52,6 +52,14 @@ export default function App() {
   // Navigation State
   const [activeView, setActiveView] = useState<ActiveView>('home');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  // Which project (if any) Import Excel was opened FROM — set explicitly at
+  // each onOpenImport call site below rather than read off the ambient
+  // currentProject/selectedProjectId, which can point at a stale
+  // previously-visited project even while the user is sitting on the
+  // Workspace Home dashboard with no project actually "open." The wizard
+  // uses this to decide whether it's targeting an existing project or
+  // creating a new one (see ExcelImportWizard's destMode default).
+  const [importFromProjectId, setImportFromProjectId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
 
   // Modals
@@ -401,6 +409,12 @@ export default function App() {
     if (activeProj) setSelectedProjectId(activeProj.id);
     if (activeSess) setSelectedSessionId(activeSess.id);
     if (savedView) {
+      // Restoring straight into the import wizard (e.g. a refresh mid-import)
+      // should still target whichever project was active, not silently fall
+      // back to "create new project."
+      if (savedView === 'import_wizard' && activeProj) {
+        setImportFromProjectId(activeProj.id);
+      }
       setActiveView(savedView);
     }
 
@@ -809,14 +823,30 @@ export default function App() {
       setSessions(allSess);
       setSelectedProjectId(newProjId);
       setSelectedSessionId(newSession.id);
-      setCards(importedCards);
+
+      // Don't trust the optimistic importedCards array — re-fetch what
+      // actually landed. persistenceService silently falls back to local
+      // storage if the real backend rejects the write (withFallback), so
+      // without this, a failed save shows a false success toast and then
+      // gets clobbered right back to an empty board the moment the
+      // [selectedProjectId] effect re-fetches from the (empty) real
+      // backend. Verifying here catches that instead of hiding it.
+      const savedCards = await persistenceService.getCards(newProjId);
+      setCards(savedCards);
       setActiveView('project_overview');
 
       localStorage.setItem('pp_active_project_id', newProjId);
       localStorage.setItem('pp_active_session_id', newSession.id);
       localStorage.setItem('pp_active_view', 'project_overview');
 
-      showToast(`Created new project "${newProj.name}" with ${importedCards.length} deliverables!`);
+      if (savedCards.length < importedCards.length) {
+        showToast(
+          `⚠️ Created "${newProj.name}", but only ${savedCards.length} of ${importedCards.length} deliverables saved. ` +
+            `Try re-importing this file into the project to fill in the rest.`
+        );
+      } else {
+        showToast(`Created new project "${newProj.name}" with ${importedCards.length} deliverables!`);
+      }
       return;
     }
 
@@ -908,11 +938,23 @@ export default function App() {
       localStorage.setItem('pp_active_project_id', currentProj.id);
       localStorage.setItem('pp_active_view', 'project_overview');
 
-      showToast(
-        destination.importAction === 'clean_replace'
-          ? `Cleanly replaced backlog with ${importedCards.length} spreadsheet deliverables!`
-          : `Updated project with ${importedCards.length} spreadsheet deliverables!`
-      );
+      // Same verification as the new-project path: a failed backend write
+      // falls back to local storage silently (withFallback), so check the
+      // re-fetched count against what we actually tried to import before
+      // declaring success. (Only checkable for clean_replace — merge/append
+      // mode's expected total depends on how many rows already existed.)
+      if (destination.importAction === 'clean_replace' && refreshed.length < importedCards.length) {
+        showToast(
+          `⚠️ Import only partially saved — ${refreshed.length} of ${importedCards.length} spreadsheet deliverables landed. ` +
+            `Try re-importing to fill in the rest.`
+        );
+      } else {
+        showToast(
+          destination.importAction === 'clean_replace'
+            ? `Cleanly replaced backlog with ${importedCards.length} spreadsheet deliverables!`
+            : `Updated project with ${importedCards.length} spreadsheet deliverables!`
+        );
+      }
     }
   };
 
@@ -1017,14 +1059,22 @@ export default function App() {
           else if (tab === 'session') setActiveView('session_room');
           else if (tab === 'board') setActiveView('project_board');
           else if (tab === 'results') setActiveView('session_results');
-          else if (tab === 'import') setActiveView('import_wizard');
+          else if (tab === 'import') {
+            setImportFromProjectId(currentProject?.id || null);
+            setActiveView('import_wizard');
+          }
         }}
         onNavigateHome={() => setActiveView('home')}
         onNavigateOverview={() => setActiveView('project_overview')}
         onNavigateBoard={() => setActiveView('project_board')}
         onNavigateSession={() => setActiveView('session_room')}
         onNavigateResults={() => setActiveView('session_results')}
-        onOpenImport={() => setActiveView('import_wizard')}
+        onOpenImport={() => {
+          // Header's Import tab only renders as part of a specific
+          // project's tab strip, so it always targets that project.
+          setImportFromProjectId(currentProject?.id || null);
+          setActiveView('import_wizard');
+        }}
         onOpenVerification={() => setShowVerificationModal(true)}
         onSwitchUser={handleSwitchUser}
         onToggleTheme={handleToggleTheme}
@@ -1057,7 +1107,12 @@ export default function App() {
             onCreateProject={handleCreateProject}
             onDeleteProject={handleDeleteProject}
             onDeleteSession={handleDeleteSession}
-            onOpenImport={() => setActiveView('import_wizard')}
+            onOpenImport={() => {
+              // Launched from the dashboard, not from inside any one
+              // project — always defaults to creating a new project.
+              setImportFromProjectId(null);
+              setActiveView('import_wizard');
+            }}
           />
         )}
 
@@ -1078,7 +1133,13 @@ export default function App() {
             onCreateSessionClick={() => setShowCreateSessionModal(true)}
             onDeleteSession={handleDeleteSession}
             onDuplicateSession={handleDuplicateSession}
-            onOpenImport={() => setActiveView('import_wizard')}
+            onOpenImport={() => {
+              // Launched from inside this specific project's own page —
+              // targets it by default instead of silently creating a
+              // second, duplicate project.
+              setImportFromProjectId(currentProject.id);
+              setActiveView('import_wizard');
+            }}
             onOpenBoard={() => setActiveView('project_board')}
             onAddWorkstream={handleAddWorkstream}
             onDeleteWorkstream={handleDeleteWorkstream}
@@ -1141,9 +1202,11 @@ export default function App() {
         {/* VIEW 6: EXCEL IMPORT WIZARD */}
         {activeView === 'import_wizard' && (
           <ExcelImportWizard
-            project={currentProject || null}
+            project={(importFromProjectId && projects.find((p) => p.id === importFromProjectId)) || null}
             projects={projects}
-            existingCards={projectCards}
+            existingCards={
+              importFromProjectId ? cards.filter((c) => c.projectId === importFromProjectId) : []
+            }
             onCancel={() => setActiveView(currentProject ? 'project_overview' : 'home')}
             onImportComplete={handleImportComplete}
           />

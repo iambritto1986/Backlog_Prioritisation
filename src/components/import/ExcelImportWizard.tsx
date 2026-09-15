@@ -63,7 +63,18 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   const [columnMapping, setColumnMapping] = useState<ColumnMappingConfig | null>(null);
   const [candidateRows, setCandidateRows] = useState<ImportCandidateRow[]>([]);
   const [ownerAnalysis, setOwnerAnalysis] = useState<OwnerResolutionInfo[]>([]);
-  const [destMode, setDestMode] = useState<'new_project' | 'existing_project'>('new_project');
+  // Defaults to targeting whichever project the wizard was opened from
+  // (App.tsx only passes a `project` prop when the user launched Import
+  // Excel from inside that project's own page/header tab — never from the
+  // Workspace Home dashboard). Without this, opening Import Excel from
+  // inside a project the user just created would silently default to
+  // "Create New Project" anyway unless they noticed and manually clicked
+  // "Import into Existing Project" — from the user's side that reads as
+  // "the import didn't go into my project, and now there's a second,
+  // duplicate project I didn't ask for."
+  const [destMode, setDestMode] = useState<'new_project' | 'existing_project'>(
+    project ? 'existing_project' : 'new_project'
+  );
   const [newProjName, setNewProjName] = useState<string>('');
   const [newProjHorizon, setNewProjHorizon] = useState<string>('June 2027');
   const [newProjImpactLabel, setNewProjImpactLabel] = useState<string>('Member Impact');

@@ -593,9 +593,42 @@ apiRouter.put('/projects/:projectId/cards/replace', async (req, res, next) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid card payload', details: parsed.error.issues });
     }
+
+    // Guard against a foreign-key violation nuking the ENTIRE import. Every
+    // card carries a workstreamId (cardInput requires it, non-empty), but
+    // that id is computed client-side (new-project imports mint fresh
+    // workstream ids and remap cards to them by name) — if any client-side
+    // bug ever lets one card's workstreamId drift from the set that was
+    // just persisted for this project, tx.card.create's FK constraint would
+    // throw, $transaction would roll back EVERY card for this project (not
+    // just the offending one), and the caller would see a 500 that
+    // PersistenceService's withFallback quietly swallows — a silent
+    // "0 cards" board with no error surfaced anywhere (see api.js/App.tsx
+    // history around the "new project" Excel import investigation). Rather
+    // than trust the incoming ids, validate them against this project's
+    // real workstreams up front and remap any orphaned card onto a valid
+    // one instead of letting a single bad id take the whole batch down.
+    const realWorkstreams = await prisma.workstream.findMany({
+      where: { projectId: req.params.projectId },
+      orderBy: { displayOrder: 'asc' },
+    });
+    const validWsIds = new Set(realWorkstreams.map((w) => w.id));
+    let remappedCount = 0;
+    const cardsToInsert = parsed.data.map((c) => {
+      if (validWsIds.has(c.workstreamId) || realWorkstreams.length === 0) return c;
+      remappedCount += 1;
+      return { ...c, workstreamId: realWorkstreams[0].id };
+    });
+    if (remappedCount > 0) {
+      console.warn(
+        `[cards/replace] project ${req.params.projectId}: ${remappedCount} card(s) referenced a workstreamId ` +
+          `that doesn't exist for this project — remapped to "${realWorkstreams[0]?.name}" instead of failing the whole import.`
+      );
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.card.deleteMany({ where: { projectId: req.params.projectId } });
-      for (const c of parsed.data) {
+      for (const c of cardsToInsert) {
         const { id, ...fields } = c;
         await tx.card.create({
           data: { ...fields, id: id || crypto.randomUUID(), projectId: req.params.projectId },
