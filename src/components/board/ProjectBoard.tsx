@@ -59,6 +59,34 @@ const DISPOSITIONS: WorkshopDisposition[] = [
   'Parking Lot',
 ];
 
+function formatRelativeTime(iso?: string): string | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const diffMs = Date.now() - then;
+  if (diffMs < 0) return 'just now';
+
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  const yr = Math.floor(mo / 12);
+  return `${yr}y ago`;
+}
+
+function formatAbsoluteDate(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export const ProjectBoard: React.FC<ProjectBoardProps> = ({
   project,
   cards,
@@ -360,6 +388,16 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
             {card.targetDateOrQuarter}
           </span>
         </div>
+
+        {formatRelativeTime(card.updatedAt) && (
+          <div
+            className="flex items-center gap-1 text-[10px] text-stone-400 dark:text-stone-500"
+            title={`Updated ${formatAbsoluteDate(card.updatedAt) || ''}`}
+          >
+            <Clock className="w-2.5 h-2.5" />
+            <span>Updated {formatRelativeTime(card.updatedAt)}</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -504,6 +542,21 @@ export const ProjectBoard: React.FC<ProjectBoardProps> = ({
                 <h3 className="text-base font-bold text-white leading-snug">
                   {selectedCardForDrawer.title}
                 </h3>
+                {(formatAbsoluteDate(selectedCardForDrawer.createdAt) ||
+                  formatRelativeTime(selectedCardForDrawer.updatedAt)) && (
+                  <div className="flex items-center gap-1 text-[10px] text-stone-400 pt-0.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>
+                      {formatAbsoluteDate(selectedCardForDrawer.createdAt) &&
+                        `Created ${formatAbsoluteDate(selectedCardForDrawer.createdAt)}`}
+                      {formatAbsoluteDate(selectedCardForDrawer.createdAt) &&
+                        formatRelativeTime(selectedCardForDrawer.updatedAt) &&
+                        ' • '}
+                      {formatRelativeTime(selectedCardForDrawer.updatedAt) &&
+                        `Updated ${formatRelativeTime(selectedCardForDrawer.updatedAt)}`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button
