@@ -522,13 +522,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   <Calendar className="w-3.5 h-3.5 text-[#d4af37]" />
                   <span>Workshop Session: <strong>{upcomingSession.name}</strong> ({upcomingSession.date})</span>
                 </span>
-                <button
-                  onClick={() => handleOpenShare(upcomingSession)}
-                  className="text-[11px] font-bold text-[#fcd34d] hover:underline flex items-center gap-1 ml-1"
-                >
-                  <Share2 className="w-3 h-3" />
-                  Share
-                </button>
+                {!isGuest && (
+                  <button
+                    onClick={() => handleOpenShare(upcomingSession)}
+                    className="text-[11px] font-bold text-[#fcd34d] hover:underline flex items-center gap-1 ml-1"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    Share
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -543,13 +545,17 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               Add Deliverable
             </button>
 
-            <button
-              onClick={() => handleOpenShare(upcomingSession)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#282a35] hover:bg-[#323540] text-xs font-semibold text-white border border-stone-700 transition-colors shadow-xs"
-            >
-              <Share2 className="w-4 h-4 text-[#d4af37]" />
-              Share Session
-            </button>
+            {/* Sharing/inviting is a facilitator action (mints a real join
+                link against the guest cap) — never shown to a guest. */}
+            {!isGuest && (
+              <button
+                onClick={() => handleOpenShare(upcomingSession)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#282a35] hover:bg-[#323540] text-xs font-semibold text-white border border-stone-700 transition-colors shadow-xs"
+              >
+                <Share2 className="w-4 h-4 text-[#d4af37]" />
+                Share Session
+              </button>
+            )}
 
             {upcomingSession && (
               <button
@@ -557,7 +563,11 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 text-xs font-bold shadow-md transition-colors"
               >
                 <Radio className="w-4 h-4" />
-                Join Session Room
+                {/* Same reasoning as the session-card button below: a guest
+                    whose only session has been closed isn't "joining"
+                    anything live — entering routes them straight to the
+                    thank-you/summary screen, so say that up front. */}
+                {isGuest && upcomingSession.stage === 'closed' ? 'View Summary' : 'Join Session Room'}
               </button>
             )}
 
@@ -1147,19 +1157,34 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   </div>
 
                   <div className="pt-4 mt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleOpenShare(sess)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-300 dark:border-stone-700 transition-colors"
-                    >
-                      <Share2 className="w-3.5 h-3.5 text-[#d4af37]" />
-                      <span>Share</span>
-                    </button>
+                    {/* Sharing/inviting is a facilitator action — generates a
+                        real join link against the guest cap, not something
+                        a guest who followed one should ever see. */}
+                    {!isGuest && (
+                      <button
+                        onClick={() => handleOpenShare(sess)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-300 dark:border-stone-700 transition-colors"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-[#d4af37]" />
+                        <span>Share</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => onEnterSession(sess.id)}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#18191c] dark:bg-[#2a2c38] hover:bg-[#343746] text-white border border-stone-700 shadow-xs transition-colors"
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#18191c] dark:bg-[#2a2c38] hover:bg-[#343746] text-white border border-stone-700 shadow-xs transition-colors ${
+                        isGuest ? 'ml-auto' : ''
+                      }`}
                     >
-                      <span>{isLive ? 'Join Workshop Room' : 'View Session Room'}</span>
+                      {/* A closed session isn't something a guest can "join" —
+                          entering it routes them to the same thank-you/
+                          summary screen SessionRoom already shows a
+                          non-facilitator once stage is 'closed', so the
+                          label should say that's where this is going,
+                          not imply the live room is still there. */}
+                      <span>
+                        {isClosed && isGuest ? 'View Summary' : isLive ? 'Join Workshop Room' : 'View Session Room'}
+                      </span>
                       <ArrowRight className="w-3.5 h-3.5 text-[#d4af37]" />
                     </button>
                   </div>

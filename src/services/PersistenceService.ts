@@ -1057,8 +1057,39 @@ export class PersistenceService implements IPersistenceService {
   async getSessionFeedback(sessionId: string): Promise<SessionFeedback[]> {
     return this.withFallback((s) => s.getSessionFeedback(sessionId), 'getSessionFeedback');
   }
+
+  // submitSessionFeedback is DELIBERATELY NOT routed through withFallback's
+  // usual signed-in/guest split. Every other guest write (cards, votes,
+  // comments) relies on the Socket.IO relay — a guest saves locally, then
+  // broadcasts, and whichever signed-in client is currently live in the
+  // room re-persists it for real. Feedback is collected specifically AFTER
+  // a session closes, which is exactly when the facilitator is LEAST
+  // likely to still be sitting in the room to catch that broadcast — so
+  // relying on the same relay here would make feedback vanish silently
+  // most of the time, not just occasionally. It doesn't need to: feedback
+  // is anonymous by design (no identity to gate on), so it can hit a
+  // public, unauthenticated endpoint directly (POST /api/sessions/:id/
+  // feedback on api.js's joinRouter — same "no Clerk session needed"
+  // tier as /api/join/:token and /api/sessions/:id/status) regardless of
+  // whether the caller is a guest or a signed-in facilitator testing it
+  // themselves. Falls back to local storage only if that network call
+  // itself fails, purely so the submitter's own UI doesn't error out —
+  // that fallback copy is never read back by anyone.
   async submitSessionFeedback(sessionId: string, rating: number): Promise<SessionFeedback> {
-    return this.withFallback((s) => s.submitSessionFeedback(sessionId, rating), 'submitSessionFeedback');
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating }),
+      });
+      if (!res.ok) {
+        throw new Error(`Feedback submission failed (${res.status})`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.warn('[PersistenceService] submitSessionFeedback failed against the real backend, saving locally only:', err);
+      return this.local.submitSessionFeedback(sessionId, rating);
+    }
   }
 
   // WORKSTREAMS

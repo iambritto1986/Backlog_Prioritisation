@@ -1348,3 +1348,37 @@ joinRouter.get('/sessions/:id/status', async (req, res, next) => {
     next(err);
   }
 });
+
+// Guest feedback submission, public (no Clerk session) — mirrors the
+// authenticated POST /sessions/:id/feedback above on apiRouter, but a
+// guest has no Clerk session to hit that one with. Safe to expose
+// unauthenticated because it's anonymous by design (see feedbackInput's
+// own comment above): there's no identity to protect, just a 1-5 rating
+// tied to a session id. Unlike every OTHER guest write (cards, votes,
+// comments), which relies on the Socket.IO relay to a live signed-in
+// client, feedback needs to land directly — it's collected specifically
+// AFTER a session closes, i.e. exactly when the facilitator is least
+// likely to still be sitting in the room to relay it (see
+// PersistenceService.ts's submitSessionFeedback override for the
+// frontend half of this).
+joinRouter.post('/sessions/:id/feedback', async (req, res, next) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ error: 'Database is not configured on this server yet' });
+    }
+    const parsed = feedbackInput.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid feedback payload', details: parsed.error.issues });
+    }
+    const session = await prisma.planningSession.findUnique({ where: { id: req.params.id } });
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const feedback = await prisma.sessionFeedback.create({
+      data: { sessionId: req.params.id, rating: parsed.data.rating },
+    });
+    res.status(201).json(serializeFeedback(feedback));
+  } catch (err) {
+    next(err);
+  }
+});

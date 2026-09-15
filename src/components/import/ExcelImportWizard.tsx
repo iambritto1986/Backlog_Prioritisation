@@ -70,14 +70,31 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   const [selectedTargetProjId, setSelectedTargetProjId] = useState<string>(project?.id || projects[0]?.id || '');
   const [importAction, setImportAction] = useState<'clean_replace' | 'update_merge' | 'append_only'>('clean_replace');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingLabel, setProcessingLabel] = useState('');
   const [dragActive, setDragActive] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Yield one paint to the browser before doing synchronous, potentially
+  // slow work. Without this, `setIsProcessing(true)` and the actual parse
+  // below happen in the SAME tick — React batches the state update and the
+  // browser never gets a chance to paint the loading state before the
+  // (blocking) parse finishes, so the whole thing looks silent for however
+  // long a big workbook takes, then just snaps to the result. This was
+  // Britto's exact report: nothing visible happens while the file loads.
+  // A plain setTimeout(0) is enough to hand control back to the browser
+  // for one frame; a real Web Worker would be needed to keep the UI
+  // interactive DURING the parse itself, which isn't what was asked for
+  // here — just something visible showing it's working.
+  const nextTick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
   // Load ArrayBuffer into workbook
-  const handleFileBuffer = (buffer: ArrayBuffer, name: string) => {
+  const handleFileBuffer = async (buffer: ArrayBuffer, name: string) => {
     try {
       setIsProcessing(true);
+      setProcessingLabel('Reading your spreadsheet…');
+      await nextTick();
+
       const wb = parseWorkbookFile(buffer);
       setWorkbook(wb);
       setFileName(name);
@@ -87,6 +104,9 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
         .replace(/[-_]/g, ' ')
         .trim();
       setNewProjName(cleanName || 'Imported Product Backlog');
+
+      setProcessingLabel('Detecting headers and workstreams…');
+      await nextTick();
 
       const firstSheet = wb.SheetNames[0];
       const data = extractSheetData(wb, firstSheet);
@@ -101,6 +121,7 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
       alert(`Error reading file: ${err.message}`);
     } finally {
       setIsProcessing(false);
+      setProcessingLabel('');
     }
   };
 
@@ -154,13 +175,21 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
   };
 
   // Move from Mapping (Step 2) to Owners & Validation (Step 3 & 4)
-  const proceedToProcessing = () => {
+  const proceedToProcessing = async () => {
     if (!sheetData || !columnMapping) return;
-    const rows = processImportRows(sheetData, columnMapping, existingCards);
-    setCandidateRows(rows);
-    const owners = analyzeOwners(rows);
-    setOwnerAnalysis(owners);
-    setStep(3);
+    setIsProcessing(true);
+    setProcessingLabel('Matching deliverables to owners…');
+    await nextTick();
+    try {
+      const rows = processImportRows(sheetData, columnMapping, existingCards);
+      setCandidateRows(rows);
+      const owners = analyzeOwners(rows);
+      setOwnerAnalysis(owners);
+      setStep(3);
+    } finally {
+      setIsProcessing(false);
+      setProcessingLabel('');
+    }
   };
 
   const toggleRowInclusion = (index: number) => {
@@ -239,7 +268,27 @@ export const ExcelImportWizard: React.FC<ExcelImportWizardProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <div className="bg-[#121318] border border-[#1f222c] rounded-2xl shadow-2xl overflow-hidden text-[#e5e7eb]">
+      <div className="relative bg-[#121318] border border-[#1f222c] rounded-2xl shadow-2xl overflow-hidden text-[#e5e7eb]">
+        {/* Loading overlay — shown while a workbook is being parsed or its
+            rows matched to owners (see handleFileBuffer/proceedToProcessing).
+            Britto's report: the wizard used to go silent for however long
+            that took, then just snap to the result with nothing visible in
+            between. This covers the whole wizard card so it's obvious
+            something is happening regardless of which step triggered it. */}
+        {isProcessing && (
+          <div className="absolute inset-0 z-20 bg-[#121318]/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center px-6">
+            <div className="relative flex items-center justify-center w-16 h-16">
+              <span className="absolute inset-0 rounded-full border-2 border-[#d4af37]/20" />
+              <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#d4af37] animate-spin" />
+              <FileSpreadsheet className="w-6 h-6 text-[#d4af37]" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white">{processingLabel || 'Working…'}</div>
+              <div className="text-xs text-stone-500 mt-1">This can take a moment for larger spreadsheets.</div>
+            </div>
+          </div>
+        )}
+
         {/* Wizard Header */}
         <div className="bg-[#181920] text-white px-6 py-4 border-b border-[#252836] flex items-center justify-between">
           <div className="flex items-center gap-3">
