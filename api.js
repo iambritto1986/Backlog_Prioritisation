@@ -514,6 +514,38 @@ const cardInput = z.object({
   sourceMeta: z.record(z.string(), z.unknown()).default({}),
 });
 
+// Card ids default to a deterministic string derived from workbook row +
+// workstream prefix (e.g. "CLAI-103") whenever the sheet has no explicit
+// id column mapped (see excelImport.ts's processImportRows/stableId) —
+// meaningful only within ONE workbook, but Card.id is a single GLOBAL
+// primary key across every project in the workspace, not scoped per
+// project. Re-importing the same (or a same-shaped) spreadsheet into a
+// second project reliably regenerates the exact same ids, which collide
+// with the rows already committed under the first project and throw
+// Prisma's P2002 unique-constraint error on `tx.card.create()` — which
+// $transaction then turns into a total rollback of the WHOLE batch, not
+// just the colliding card (confirmed live: importing an AVMAIS sheet into
+// a brand-new project worked cleanly; importing that exact same file again
+// into a second project 500'd with "Unique constraint failed on the
+// fields: (`id`)" and left that second project with zero cards). Detect
+// any incoming id already taken by a DIFFERENT project and mint a fresh
+// one for just that card, so one collision can't take the whole import
+// down.
+async function dedupeCardIdsAcrossProjects(cards, projectId) {
+  const candidateIds = cards.map((c) => c.id).filter(Boolean);
+  if (candidateIds.length === 0) return { cards, dedupedCount: 0 };
+  const collisions = await prisma.card.findMany({
+    where: { id: { in: candidateIds }, projectId: { not: projectId } },
+    select: { id: true },
+  });
+  if (collisions.length === 0) return { cards, dedupedCount: 0 };
+  const collidingIds = new Set(collisions.map((c) => c.id));
+  const deduped = cards.map((c) =>
+    c.id && collidingIds.has(c.id) ? { ...c, id: `${c.id}-${crypto.randomUUID().slice(0, 8)}` } : c
+  );
+  return { cards: deduped, dedupedCount: collidingIds.size };
+}
+
 apiRouter.get('/projects/:projectId/cards', async (req, res, next) => {
   try {
     const cards = await prisma.card.findMany({
@@ -548,7 +580,14 @@ apiRouter.post('/projects/:projectId/cards', async (req, res, next) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid card payload', details: parsed.error.issues });
     }
-    const { id, ...fields } = parsed.data;
+    const { cards: [deduped], dedupedCount } = await dedupeCardIdsAcrossProjects(
+      [parsed.data],
+      req.params.projectId
+    );
+    if (dedupedCount > 0) {
+      console.warn(`[cards] project ${req.params.projectId}: card id collided with another project — reassigned.`);
+    }
+    const { id, ...fields } = deduped;
     const card = await prisma.card.create({
       data: { ...fields, id: id || crypto.randomUUID(), projectId: req.params.projectId },
       include: { workstream: true },
@@ -566,8 +605,17 @@ apiRouter.post('/projects/:projectId/cards/bulk', async (req, res, next) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid bulk card payload', details: parsed.error.issues });
     }
+    const { cards: dedupedCards, dedupedCount } = await dedupeCardIdsAcrossProjects(
+      parsed.data,
+      req.params.projectId
+    );
+    if (dedupedCount > 0) {
+      console.warn(
+        `[cards/bulk] project ${req.params.projectId}: ${dedupedCount} card id(s) collided with another project — reassigned.`
+      );
+    }
     const saved = [];
-    for (const c of parsed.data) {
+    for (const c of dedupedCards) {
       const { id, ...fields } = c;
       const card = await prisma.card.upsert({
         where: { id: id || '__none__' },
@@ -626,9 +674,28 @@ apiRouter.put('/projects/:projectId/cards/replace', async (req, res, next) => {
       );
     }
 
+    // Second guard, same shape as the workstreamId one above but for the
+    // actual failure confirmed live: two cards from two different projects
+    // ending up with the identical id (deterministic ids like "CLAI-103"
+    // from re-importing the same/similarly-shaped spreadsheet into a
+    // different project) throws Prisma's P2002 unique-constraint error and
+    // rolls back this entire $transaction, wiping every card for THIS
+    // project even though the collision was caused by a card that belongs
+    // to a completely different one.
+    const { cards: dedupedCards, dedupedCount } = await dedupeCardIdsAcrossProjects(
+      cardsToInsert,
+      req.params.projectId
+    );
+    if (dedupedCount > 0) {
+      console.warn(
+        `[cards/replace] project ${req.params.projectId}: ${dedupedCount} card id(s) collided with cards ` +
+          `already belonging to a different project — reassigned instead of failing the whole import.`
+      );
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.card.deleteMany({ where: { projectId: req.params.projectId } });
-      for (const c of cardsToInsert) {
+      for (const c of dedupedCards) {
         const { id, ...fields } = c;
         await tx.card.create({
           data: { ...fields, id: id || crypto.randomUUID(), projectId: req.params.projectId },
