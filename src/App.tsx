@@ -27,6 +27,7 @@ import { AlertTriangle } from 'lucide-react';
 import { parseShareHash, ShareWorkshopBundle } from './utils/shareBundle';
 import { KnockToJoinModal } from './components/session/KnockToJoinModal';
 import { SessionExpiredScreen } from './components/session/SessionExpiredScreen';
+import { SessionClosedFeedback } from './components/session/SessionClosedFeedback';
 import { LandingPage } from './components/marketing/LandingPage';
 
 export type ActiveView =
@@ -67,6 +68,24 @@ export default function App() {
   const [sessionExpiredInfo, setSessionExpiredInfo] = useState<{
     sessionName?: string;
     projectName?: string;
+  } | null>(null);
+
+  // Set when a returning GUEST's own cached session (hydrated once at join
+  // time — see hydrateShareData) has since been closed server-side, e.g.
+  // the facilitator closed it while this guest wasn't actively in the room
+  // to receive the live broadcast (see PresenceService), or after they
+  // closed the tab and came back later. Detected in initApp via a cheap
+  // status re-check (GET /api/sessions/:id/status) that doesn't spend a
+  // guest-cap slot the way re-hitting /api/join/:token would. Takes
+  // priority over the whole view router, same as sessionExpiredInfo —
+  // this is the "no deliverables after close" gate for a guest who didn't
+  // happen to be watching when it happened.
+  const [guestSessionClosedInfo, setGuestSessionClosedInfo] = useState<{
+    session: PlanningSession;
+    project: Project;
+    totalCards: number;
+    selectedCount: number;
+    actionsCount: number;
   } | null>(null);
 
   // Auth: guests who arrived via a shared workshop link never touch Clerk at
@@ -117,6 +136,23 @@ export default function App() {
       localStorage.setItem('pp_active_view', activeView);
     }
   }, [activeView]);
+
+  // Guests (joined via a share link) are restricted to their one project's
+  // overview and its session room — never the multi-project workspace
+  // dashboard, the board/results views reached from it, or the import
+  // wizard (which can create/replace whole projects). This used to be
+  // enforced only by each page individually hiding its own "back to
+  // workspace" link; the actual hole Britto hit was that AppHeader's brand
+  // logo called onNavigateHome completely unconditionally, so a guest could
+  // reach Home (and its unrestricted "New Project" button) regardless of
+  // what any single page hid — including via a cached `pp_active_view` of
+  // 'home' surviving a refresh. This effect is the single source of truth
+  // instead: whatever got a guest into a disallowed view, snap them back.
+  useEffect(() => {
+    if (isGuestSession && activeView !== 'project_overview' && activeView !== 'session_room') {
+      setActiveView('project_overview');
+    }
+  }, [isGuestSession, activeView]);
 
   // Sync the signed-in Clerk identity into the app's User model. Guests
   // (joined via share link) are handled entirely in hydrateShareData and
@@ -317,6 +353,48 @@ export default function App() {
 
     const storedCards = await persistenceService.getCards(activeProj?.id || '');
 
+    // A guest's project/session/cards were hydrated into THEIR OWN browser
+    // storage once, at join time, and never touch the real backend again —
+    // so if the facilitator has since closed that session, this guest's
+    // local cache has no way to know, and would otherwise just reload
+    // straight back into whatever view they last had open (home, project
+    // overview, the live room) with the stale pre-close data still sitting
+    // there in full. Re-check the session's real stage with a cheap,
+    // uncapped status endpoint before restoring anything, and if it's
+    // closed, skip straight to the same closed-session experience a guest
+    // who was live in the room already gets (SessionClosedFeedback) instead
+    // of resurrecting deliverables the facilitator ended access to.
+    if (isGuestSession && activeSess && activeProj) {
+      try {
+        const statusRes = await fetch(`/api/sessions/${encodeURIComponent(activeSess.id)}/status`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.stage === 'closed') {
+            const [assessmentsMap, actionsList] = await Promise.all([
+              persistenceService.getAssessments(activeSess.id),
+              persistenceService.getActions(activeSess.id),
+            ]);
+            const selectedCount = Object.values(assessmentsMap).filter(
+              (a) => a.decision === 'Selected'
+            ).length;
+            setGuestSessionClosedInfo({
+              session: activeSess,
+              project: activeProj,
+              totalCards: storedCards.length,
+              selectedCount,
+              actionsCount: actionsList.length,
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        // Fail OPEN, not closed — if the status check itself can't be
+        // reached (offline, backend hiccup), don't lock a guest out of a
+        // session that may well still be live over a network blip.
+        console.warn('Could not verify guest session status:', e);
+      }
+    }
+
     setProjects(storedProjects);
     setSessions(storedSessions);
     setCards(storedCards);
@@ -359,6 +437,21 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Defense-in-depth guard for guest-blocked actions (create/delete
+  // project, workstream management, session create/delete/duplicate,
+  // Excel import). The UI already hides every button that leads here for
+  // a guest (WorkspaceHome, ProjectOverview, AppHeader), but this is the
+  // actual enforcement point — so a guest can never reach these outcomes
+  // no matter which path (a future UI change, a stale cached view, devtools)
+  // gets them to call the handler. Returns true if the action was blocked.
+  const blockIfGuest = (): boolean => {
+    if (isGuestSession) {
+      showToast("Guests can't manage projects or sessions — sign up for full access.");
+      return true;
+    }
+    return false;
+  };
+
   // Switch persona
   const handleSwitchUser = (user: User) => {
     authService.setCurrentUser(user);
@@ -384,6 +477,7 @@ export default function App() {
     horizon: string,
     impactLabel: string
   ) => {
+    if (blockIfGuest()) return;
     const newProj: Project = {
       id: `proj-${Date.now()}`,
       workspaceId: workspace.id,
@@ -415,6 +509,7 @@ export default function App() {
 
   // Delete Project handler
   const handleDeleteProject = async (projectId: string) => {
+    if (blockIfGuest()) return;
     await persistenceService.deleteProject(projectId);
     const updatedProjects = await persistenceService.getProjects();
     const updatedSessions = await persistenceService.getSessions();
@@ -439,6 +534,7 @@ export default function App() {
   const handleCreateSessionSubmit = async (
     sessionData: Omit<PlanningSession, 'id' | 'createdAt' | 'updatedAt' | 'version'>
   ) => {
+    if (blockIfGuest()) return;
     const newSession: PlanningSession = {
       ...sessionData,
       id: `sess-${Date.now()}`,
@@ -458,6 +554,7 @@ export default function App() {
 
   // Delete Session handler
   const handleDeleteSession = async (sessionId: string) => {
+    if (blockIfGuest()) return;
     await persistenceService.deleteSession(sessionId);
     const updated = await persistenceService.getSessions();
     setSessions(updated);
@@ -474,6 +571,7 @@ export default function App() {
 
   // Duplicate Session handler
   const handleDuplicateSession = async (sessionId: string) => {
+    if (blockIfGuest()) return;
     const duplicated = await persistenceService.duplicateSession(sessionId);
     const updated = await persistenceService.getSessions();
     setSessions(updated);
@@ -505,6 +603,7 @@ export default function App() {
 
   // Workstream Handlers
   const handleAddWorkstream = async (name: string, lead: string, color: string) => {
+    if (blockIfGuest()) return;
     const currentProj = projects.find((p) => p.id === selectedProjectId);
     if (!currentProj) return;
 
@@ -530,6 +629,7 @@ export default function App() {
   };
 
   const handleDeleteWorkstream = async (workstreamId: string) => {
+    if (blockIfGuest()) return;
     await persistenceService.deleteWorkstream(selectedProjectId, workstreamId);
     const all = await persistenceService.getProjects();
     setProjects(all);
@@ -537,6 +637,7 @@ export default function App() {
   };
 
   const handleUpdateWorkstream = async (workstream: Workstream) => {
+    if (blockIfGuest()) return;
     await persistenceService.updateWorkstream(selectedProjectId, workstream);
     const all = await persistenceService.getProjects();
     setProjects(all);
@@ -594,6 +695,7 @@ export default function App() {
     importedCards: Card[],
     destination: ImportDestinationConfig
   ) => {
+    if (blockIfGuest()) return;
     const PALETTE = [
       '#d4af37', // Gold
       '#3b82f6', // Blue
@@ -831,6 +933,41 @@ export default function App() {
     );
   }
 
+  // Same priority, for the other half of "the session ended" — a guest who
+  // was ALREADY in via an existing local session, reloading after the
+  // facilitator closed it while they weren't watching (see initApp's
+  // status re-check). Also takes priority over the whole view router: the
+  // "nothing after close" policy has to hold for project_overview/the
+  // board too, not just the live room, so this can't be left to any one
+  // page to enforce on its own.
+  if (guestSessionClosedInfo) {
+    return (
+      <div className="min-h-screen bg-[#0b0c10] text-[#e5e7eb]">
+        <SessionClosedFeedback
+          session={guestSessionClosedInfo.session}
+          project={guestSessionClosedInfo.project}
+          totalCards={guestSessionClosedInfo.totalCards}
+          selectedCount={guestSessionClosedInfo.selectedCount}
+          actionsCount={guestSessionClosedInfo.actionsCount}
+          onBackToSession={() => {
+            // There's nothing live to go "back" to — a closed session is a
+            // dead end for a guest by design (see Britto's monetization
+            // ask: post-close access is what signing up/subscribing is
+            // for). Clear this browser's guest identity entirely so the
+            // next render falls through to the Clerk auth gate below
+            // (LandingPage) instead of resurrecting the stale cached view.
+            localStorage.removeItem(GUEST_SESSION_KEY);
+            localStorage.removeItem('pp_active_project_id');
+            localStorage.removeItem('pp_active_session_id');
+            localStorage.removeItem('pp_active_view');
+            setIsGuestSession(false);
+            setGuestSessionClosedInfo(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   // --- Auth gate ---
   // Real facilitators/workspace owners must sign in with Clerk. Guests who
   // arrived via a shared workshop link (isGuestSession, or still resolving
@@ -873,6 +1010,7 @@ export default function App() {
         currentSession={currentSession}
         currentUser={currentUser}
         isDarkTheme={isDarkTheme}
+        isGuest={isGuestSession}
         onTabChange={(tab) => {
           if (tab === 'home') setActiveView('home');
           else if (tab === 'project') setActiveView('project_overview');
@@ -901,6 +1039,7 @@ export default function App() {
             projects={projects}
             sessions={sessions}
             currentUser={currentUser}
+            isGuest={isGuestSession}
             onSelectProject={(projId) => {
               setSelectedProjectId(projId);
               persistenceService.getCards(projId).then(setCards);

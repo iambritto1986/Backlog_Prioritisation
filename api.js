@@ -1315,3 +1315,36 @@ joinRouter.get('/join/:token', async (req, res, next) => {
     next(err);
   }
 });
+
+// A guest's project/session/cards are hydrated ONCE into their own browser
+// storage at join time (see hydrateShareData in App.tsx) and never touch the
+// real backend again after that — so if the facilitator closes the session
+// after a guest has already joined, that guest's local copy has no way to
+// find out. Re-calling GET /join/:token would work but increments
+// guestJoinCount and counts against the per-session guest cap on every
+// single page load/refresh, which is wrong for a silent background check.
+// This is a deliberately tiny, uncapped, read-only endpoint the frontend
+// polls on load for any guest with a cached session id, purely to answer
+// "is this still live?" without spending a guest slot or leaking any
+// deliverable/card data — same public (no Clerk) access as /join/:token
+// itself, since a guest by definition has no Clerk session to authenticate.
+joinRouter.get('/sessions/:id/status', async (req, res, next) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ error: 'Database is not configured on this server yet' });
+    }
+    const session = await prisma.planningSession.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, stage: true, name: true, project: { select: { name: true } } },
+    });
+    if (!session) {
+      // Deleted or never existed on the real backend (e.g. a guest whose
+      // whole join predates the real backend going live) — treat the same
+      // as closed, since there's nothing live for the guest to return to.
+      return res.json({ stage: 'closed' });
+    }
+    res.json({ stage: session.stage, sessionName: session.name, projectName: session.project?.name });
+  } catch (err) {
+    next(err);
+  }
+});

@@ -561,13 +561,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               </button>
             )}
 
-            <button
-              onClick={onOpenImport}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-transparent hover:bg-stone-800 text-stone-300 text-xs font-semibold border border-stone-700 transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-stone-400" />
-              Import Excel
-            </button>
+            {!isGuest && (
+              <button
+                onClick={onOpenImport}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-transparent hover:bg-stone-800 text-stone-300 text-xs font-semibold border border-stone-700 transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-stone-400" />
+                Import Excel
+              </button>
+            )}
           </div>
         </div>
 
@@ -1059,13 +1061,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 Facilitated meetings with custom agendas, Delphi planning poker, and workshop decisions.
               </p>
             </div>
-            <button
-              onClick={onCreateSessionClick}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              New Session
-            </button>
+            {!isGuest && (
+              <button
+                onClick={onCreateSessionClick}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New Session
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1095,7 +1099,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                       </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-mono text-stone-500">Rev {sess.version}</span>
-                        {onDuplicateSession && (
+                        {!isGuest && onDuplicateSession && (
                           <button
                             type="button"
                             onClick={() => onDuplicateSession(sess.id)}
@@ -1105,7 +1109,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                             <Copy className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {onDeleteSession && (
+                        {!isGuest && onDeleteSession && (
                           <button
                             type="button"
                             onClick={() => setSessionToDelete(sess)}
@@ -1178,13 +1182,15 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                 Cross-functional tracks with designated leads and deliverable progress.
               </p>
             </div>
-            <button
-              onClick={() => setShowAddWsModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Workstream
-            </button>
+            {!isGuest && (
+              <button
+                onClick={() => setShowAddWsModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 font-bold text-xs shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Workstream
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1211,7 +1217,7 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-stone-100 dark:bg-[#282a35] text-stone-600 dark:text-stone-300">
                         {wsCards.length} cards
                       </span>
-                      {onDeleteWorkstream && project.workstreams.length > 1 && (
+                      {!isGuest && onDeleteWorkstream && project.workstreams.length > 1 && (
                         <button
                           type="button"
                           onClick={() => onDeleteWorkstream(ws.id)}

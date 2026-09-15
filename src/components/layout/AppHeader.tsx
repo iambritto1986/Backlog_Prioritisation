@@ -17,6 +17,15 @@ export interface AppHeaderProps {
   activeSession?: PlanningSession | null;
   currentSession?: PlanningSession | null;
   activeView?: string;
+  // True for a guest who joined via a share link. Guests are restricted to
+  // their one project's overview/session room (see App.tsx and
+  // ProjectOverview's own isGuest gate) — but this header is rendered on
+  // EVERY view and its brand logo has always called onNavigateHome
+  // unconditionally, which was the actual hole: a guest could reach the
+  // full multi-project workspace dashboard (with its unrestricted "New
+  // Project" button) just by clicking the logo, no matter what any other
+  // page hid from them.
+  isGuest?: boolean;
   onNavigateHome?: () => void;
   onNavigateOverview?: () => void;
   onNavigateBoard?: () => void;
@@ -32,6 +41,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   activeSession,
   currentSession,
   activeView = 'home',
+  isGuest,
   onNavigateHome,
   onNavigateOverview,
   onNavigateSession,
@@ -72,14 +82,24 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         {/* Left: Brand & Reactive Breadcrumb */}
         <div className="flex items-center gap-3 min-w-0">
           <div
-            onClick={onNavigateHome}
-            className="flex items-center gap-2.5 cursor-pointer group shrink-0"
-            title="Return to TalonSync Projects Hub"
+            onClick={isGuest ? undefined : onNavigateHome}
+            className={`flex items-center gap-2.5 shrink-0 ${
+              isGuest ? '' : 'cursor-pointer group'
+            }`}
+            title={isGuest ? 'TalonSync' : 'Return to TalonSync Projects Hub'}
           >
-            <div className="w-8 h-8 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center shadow-xs group-hover:border-[#d4af37] group-hover:shadow-[0_0_12px_rgba(212,175,55,0.25)] transition-all">
+            <div
+              className={`w-8 h-8 rounded-xl bg-[#14161f] border border-[#d4af37]/40 flex items-center justify-center shadow-xs transition-all ${
+                isGuest ? '' : 'group-hover:border-[#d4af37] group-hover:shadow-[0_0_12px_rgba(212,175,55,0.25)]'
+              }`}
+            >
               <BrandLogo className="w-5 h-5" />
             </div>
-            <span className="gold-text font-black text-base tracking-tight group-hover:brightness-125 transition-[filter]">
+            <span
+              className={`gold-text font-black text-base tracking-tight transition-[filter] ${
+                isGuest ? '' : 'group-hover:brightness-125'
+              }`}
+            >
               TalonSync
             </span>
           </div>

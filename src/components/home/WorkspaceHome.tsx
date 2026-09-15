@@ -26,6 +26,15 @@ interface WorkspaceHomeProps {
   projects: Project[];
   sessions: PlanningSession[];
   currentUser: User;
+  // True for a guest who joined via a share link. App.tsx now keeps guests
+  // off this page entirely (they're routed to/locked onto project_overview
+  // and session_room only — see App.tsx's guest-view guard and AppHeader's
+  // disabled brand-logo nav), but this page still checks isGuest itself as
+  // a second, independent layer: role alone isn't a safe guest signal (a
+  // share link can explicitly grant role 'facilitator'), and this is the
+  // page with the workspace's only unrestricted "New Project" control, so
+  // it shouldn't rely solely on never being reached by a guest.
+  isGuest?: boolean;
   onSelectProject: (projectId: string) => void;
   onSelectSession: (sessionId: string) => void;
   onCreateProject: (name: string, description: string, horizon: string, impactLabel: string) => void;
@@ -39,6 +48,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
   projects,
   sessions,
   currentUser,
+  isGuest,
   onSelectProject,
   onSelectSession,
   onCreateProject,
@@ -53,12 +63,12 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
   const [sessionToDelete, setSessionToDelete] = useState<PlanningSession | null>(null);
 
   // Deleting a project is a workspace-owner-level action, not something a
-  // session guest/contributor should ever see — guests always join with
-  // role 'contributor' (or whatever a share link explicitly grants, never
-  // workspace_admin/project_lead), so gating on role here also happens to
-  // be exactly the guest gate.
+  // session guest/contributor should ever see. Role alone used to be the
+  // whole check, but a share link can explicitly grant role 'facilitator'
+  // (see App.tsx's hydrateShareData), so isGuest is checked first and wins
+  // regardless of whatever role that guest was handed.
   const canDeleteProject =
-    currentUser.role === 'workspace_admin' || currentUser.role === 'project_lead';
+    !isGuest && (currentUser.role === 'workspace_admin' || currentUser.role === 'project_lead');
 
   // Form State for Create Project
   const [newProjName, setNewProjName] = useState('');
@@ -210,21 +220,25 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
             />
           </div>
 
-          <button
-            onClick={onOpenImport}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#14161f] hover:bg-[#1c1f2b] text-stone-200 border border-[#252836] text-xs font-semibold transition-all shadow-xs"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
-            <span>Import Excel</span>
-          </button>
+          {!isGuest && (
+            <button
+              onClick={onOpenImport}
+              className="hidden sm:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#14161f] hover:bg-[#1c1f2b] text-stone-200 border border-[#252836] text-xs font-semibold transition-all shadow-xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d4af37]" />
+              <span>Import Excel</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 text-xs font-bold transition-all shadow-[0_0_14px_rgba(212,175,55,0.3)]"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Project</span>
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#d4af37] hover:bg-[#c59e2b] text-neutral-950 text-xs font-bold transition-all shadow-[0_0_14px_rgba(212,175,55,0.3)]"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Project</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -403,7 +417,7 @@ export const WorkspaceHome: React.FC<WorkspaceHomeProps> = ({
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
 
-                    {onDeleteSession && (
+                    {!isGuest && onDeleteSession && (
                       <button
                         type="button"
                         onClick={(e) => {

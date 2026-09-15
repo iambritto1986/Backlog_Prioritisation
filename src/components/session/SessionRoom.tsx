@@ -866,7 +866,15 @@ export const SessionRoom: React.FC<SessionRoomProps> = ({
   // seeing the live room (their own closed-state controls live on the
   // Results & Export page instead).
   if (!isFacilitator && session.stage === 'closed') {
-    const selectedCount = Object.values(assessments).filter((a) => a.decision === 'Selected').length;
+    // Same `as SessionAssessment[]` cast already used a few hundred lines up
+    // (Object.values(assessments) on this codebase's TS config infers
+    // unknown[] rather than the Record's value type) — this exact line was
+    // the one spot that missed it, caught by a plain tsc --noEmit while
+    // verifying the guest-access fixes below; fixed to match the
+    // established pattern rather than left as a dangling type error.
+    const selectedCount = (Object.values(assessments) as SessionAssessment[]).filter(
+      (a) => a.decision === 'Selected'
+    ).length;
     return (
       <div className="h-[calc(100vh-3.5rem)] overflow-y-auto bg-[#faf9f5] dark:bg-[#18191c] text-stone-900 dark:text-stone-100">
         <SessionClosedFeedback
